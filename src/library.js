@@ -548,6 +548,9 @@ function AutoCards(inHook, inText, inStop) {
                 ],
                 memories: [
                     "associations", "duplicates"
+                ],
+                inventory: [
+                    "items"
                 ]
             }
         }))) {
@@ -679,6 +682,9 @@ function AutoCards(inHook, inText, inStop) {
                     associations: {},
                     // Serialized hashset of the 2000 most recent near-duplicate memories purged from context
                     duplicates: "%@%"
+                },
+                inventory: {
+                    items: {}
                 }
             }
         };
@@ -2136,6 +2142,17 @@ function AutoCards(inHook, inText, inStop) {
                     }
                 }
             }
+
+            // Create inventory card if it doesn't exist
+            let inventoryCard = Internal.getCard(card => card.title === "Inventory");
+            if (!inventoryCard) {
+                inventoryCard = Internal.buildCard("Inventory", "You are carrying:", "inventory");
+                AC.generation.pending.push(O.s({
+                    generationType: 'starting_inventory',
+                    title: "Starting Inventory",
+                    prompt: Internal.generateStartingInventory(),
+                }));
+            }
             const pendingCandidates = new Map();
             if ((0 < nearestUnparsedAction) && (AC.database.titles.lastActionParsed < nearestUnparsedAction)) {
                 const actions = [];
@@ -2841,6 +2858,37 @@ function AutoCards(inHook, inText, inStop) {
                         ));
                     } while (AC.signal.maxChars < (context.length + 3));
                 }
+
+            // Check for item acquisition and loss keywords
+            const itemKeywords = {
+                add: ["pick up", "buy", "find", "gain"],
+                remove: ["drop", "sell", "lose", "use"]
+            };
+            const lowerText = text.toLowerCase();
+
+            for (const action in itemKeywords) {
+                const keywordRegex = new RegExp(itemKeywords[action].join("|"), "gi");
+                let match;
+                while ((match = keywordRegex.exec(lowerText)) !== null) {
+                    const keyword = match[0];
+                    const substr = text.substring(match.index);
+                    const itemRegex = new RegExp(`${keyword}\\s+((?:a|an|the)?\\s*([\\w\\s,]+(?:(?:and|\\,)\\s*[\\w\\s,]+)*))(\\s+in(?:side)?\\s+(?:the|a|an)\\s+([\\w\\s]+))?`, "i");
+                    const itemMatch = substr.match(itemRegex);
+
+                    if (itemMatch && itemMatch[1]) {
+                        const itemNames = itemMatch[1].replace(/,(?=\s*(?:and|$))/g, '').split(/,|\s+and\s+/).map(name => name.trim().replace(/^(?:a|an|the)\s+/, ''));
+                        const containerName = itemMatch[4] ? itemMatch[4].trim() : null;
+                        for (const itemName of itemNames) {
+                            if (action === "add") {
+                                if (!Internal.getCard(card => card.title.toLowerCase() === itemName.toLowerCase())) {
+                                    Internal.generateItemCard(itemName);
+                                }
+                            }
+                            Internal.updateInventory(action, itemName, 1, containerName);
+                        }
+                    }
+                }
+            }
                 if (shouldTrimContext()) {
                     // If the context is still too long, just trim from the beginning I guess 🤷‍♀️
                     context = context.slice(context.length - AC.signal.maxChars + 1);
@@ -3160,10 +3208,26 @@ function AutoCards(inHook, inText, inStop) {
                     AC.generation.completed + generationsRemaining
                 ));
                 if (generationsRemaining <= 0) {
-                    notify("\"" + AC.generation.workpiece.title + "\" was successfully added to your story cards!");
-                    constructCard(O.f({
-                        type: AC.generation.workpiece.type,
-                        title: AC.generation.workpiece.title,
+                    if (AC.generation.workpiece.generationType === 'starting_inventory') {
+                        Internal.parseAndPopulateInventory(textClone);
+                        let inventoryCard = Internal.getCard(card => card.title === "Inventory");
+                        if (inventoryCard) {
+                            inventoryCard.entry = Internal.renderInventory();
+                        }
+                    } else if (AC.generation.workpiece.generationType === 'item_description') {
+                        notify("\"" + AC.generation.workpiece.title + "\" was successfully added to your story cards!");
+                        constructCard(O.f({
+                            type: AC.generation.workpiece.type,
+                            title: AC.generation.workpiece.title,
+                            keys: AC.generation.workpiece.keys,
+                            entry: AC.generation.workpiece.entry + "\n" + textClone,
+                            description: AC.generation.workpiece.description,
+                        }), newCardIndex());
+                    } else {
+                        notify("\"" + AC.generation.workpiece.title + "\" was successfully added to your story cards!");
+                        constructCard(O.f({
+                            type: AC.generation.workpiece.type,
+                            title: AC.generation.workpiece.title,
                         keys: AC.generation.workpiece.keys,
                         entry: (function() {
                             if (!AC.config.bulletedListMode) {
@@ -4599,6 +4663,119 @@ function AutoCards(inHook, inText, inStop) {
                 }
             }
             return null;
+        }
+        static generateItemCard(itemName) {
+            const itemPrompt = prose(
+                "-----",
+                "",
+                "<SYSTEM>",
+                "# Stop the story and ignore previous instructions. Write a brief and coherent informational entry for an item named %{title} following these instructions:",
+                "- Write only third-person pure prose information about %{title} using complete sentences with correct punctuation",
+                "- Include details about the item's appearance, weight, value, and any potential effects.",
+                "- Create new information based on the context and story direction",
+                "- Mention %{title} in every sentence",
+                "- Be concise and grounded",
+                "- Imitate the story's writing style and infer the reader's preferences",
+                "</SYSTEM>",
+                "Continue the entry for %{title} below while avoiding repetition:",
+                "%{entry}"
+            );
+
+            AC.generation.pending.push(O.s({
+                generationType: 'item_description',
+                title: itemName,
+                prompt: itemPrompt,
+                type: 'item',
+                keys: itemName,
+                entry: `{title: ${itemName}}`,
+                description: `{updates: true, limit: ${AC.config.defaultMemoryLimit}}`,
+                limit: AC.config.defaultEntryLimit
+            }));
+            notify("Generating card for \"" + itemName + "\"");
+            return true;
+        }
+        static updateInventory(action, itemName, quantity = 1, containerName = null) {
+            let inventoryCard = Internal.getCard(card => card.title === "Inventory");
+            if (!inventoryCard) {
+                return;
+            }
+
+            let targetContainer = AC.database.inventory.items;
+            if (containerName) {
+                if (AC.database.inventory.items[containerName]) {
+                    if (!AC.database.inventory.items[containerName].items) {
+                        AC.database.inventory.items[containerName].items = {};
+                    }
+                    targetContainer = AC.database.inventory.items[containerName].items;
+                }
+            }
+
+            const item = targetContainer[itemName];
+
+            if (action === "add") {
+                if (item) {
+                    item.quantity += quantity;
+                } else {
+                    targetContainer[itemName] = { quantity: quantity };
+                }
+            } else if (action === "remove") {
+                if (item) {
+                    item.quantity -= quantity;
+                    if (item.quantity <= 0) {
+                        delete targetContainer[itemName];
+                    }
+                }
+            }
+            inventoryCard.entry = Internal.renderInventory();
+        }
+        static renderInventory() {
+            let inventoryText = "You are carrying:";
+            const renderItems = (items, indent = "") => {
+                for (const itemName in items) {
+                    const item = items[itemName];
+                    inventoryText += `\n${indent}- ${itemName} (${item.quantity})`;
+                    if (item.items) {
+                        renderItems(item.items, indent + "  ");
+                    }
+                }
+            };
+            renderItems(AC.database.inventory.items);
+            return inventoryText;
+        }
+        static parseAndPopulateInventory(text) {
+            const lines = text.split('\n');
+            let currentContainer = null;
+
+            for (const line of lines) {
+                const itemMatch = line.match(/^\s*-\s*([\w\s]+)\s*\((\d+)\)/);
+                if (itemMatch) {
+                    const itemName = itemMatch[1].trim();
+                    const quantity = parseInt(itemMatch[2], 10);
+                    const indent = (line.match(/^\s*/) || [""])[0].length;
+
+                    if (indent === 0) {
+                        AC.database.inventory.items[itemName] = { quantity: quantity };
+                        currentContainer = itemName;
+                    } else if (currentContainer && AC.database.inventory.items[currentContainer]) {
+                        if (!AC.database.inventory.items[currentContainer].items) {
+                            AC.database.inventory.items[currentContainer].items = {};
+                        }
+                        AC.database.inventory.items[currentContainer].items[itemName] = { quantity: quantity };
+                    }
+                }
+            }
+        }
+        static generateStartingInventory() {
+            return prose(
+                "-----",
+                "",
+                "<SYSTEM>",
+                "# Stop the story and ignore previous instructions. Describe the items the player is carrying at the start of the adventure.",
+                "- List the items in a bulleted format, using the exact format: - Item Name (quantity)",
+                "- Be creative and generate a few starting items based on the story's context.",
+                "</SYSTEM>",
+                "You are carrying:"
+            );
         }
     }); }
     function validateCooldown(cooldown) {
