@@ -1,30 +1,13 @@
-// Your "Library" tab should look like this
-
-// Auto-Cards: An AI Dungeon script that automatically creates and updates plot-relevant story cards during gameplay.
 function AutoCards(inHook, inText, inStop) {
     "use strict";
-    /*
-    Default Auto-Cards settings
-    Feel free to change these settings to customize your scenario's default gameplay experience
-    The default values for your scenario are specified below:
-    */
-
     const CONFIG = {
-        // Is Auto-Cards enabled? (true or false)
         enabled: true,
-        // Minimum number of turns in between automatic card generation events? (0 to 9999)
-        cardCreationCooldown: 22,
-        // Use a bulleted list format for newly generated card entries? (true or false)
-        useBulletedListMode: true,
-        // Maximum allowed length for newly generated story card entries? (200 to 2000)
-        generatedEntryLimit: 750,
-        // Do newly generated cards have memory updates enabled by default? (true or false)
-        newCardsDoMemoryUpdates: true,
-        // Default character limit before the card's memory bank is summarized? (1750 to 9900)
-        newCardsMemoryLimit: 2750,
-        // Approximately how much shorter should recently compressed memories be? (ratio = 10 * old / new) (20 to 1250)
+        addCardCooldown: 22,
+        bulletedListMode: true,
+        defaultEntryLimit: 750,
+        defaultCardsDoMemoryUpdates: true,
+        defaultMemoryLimit: 2750,
         memoryCompressionRatio: 25,
-        // AI prompt used to generate new story card entries?
         cardGenerationPrompt: prose(
             "-----",
             "",
@@ -64,17 +47,13 @@ function AutoCards(inHook, inText, inStop) {
             "\"\"\"",
             "Summarize below:"
         ),
-        // Titles banned from future card generation attempts?
         bannedTitlesList: [
             "North", "East", "South", "West", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
         ],
-        // Default story card "type" used by Auto-Cards? (does not matter)
         defaultCardType: "class",
-        // Should titles mentioned in the "opening" plot component be banned from future card generation by default?
         banTitlesFromOpening: true
     };
 
-    // === NARRATIVE GUIDANCE CONFIGURATION ===
     const NARRATIVE_GUIDANCE = {
         ENABLED: true,
         initialHeatValue: 0,
@@ -221,28 +200,18 @@ function AutoCards(inHook, inText, inStop) {
         ]
     };
 
-    //—————————————————————————————————————————————————————————————————————————————————
-
-    // Main implementation of the Auto-Cards script.
-
-    // Hoisted class definitions for better organization.
     const Const = hoistConst();
     const O = hoistO();
     const Words = hoistWords();
     const StringsHashed = hoistStringsHashed();
     const Internal = hoistInternal();
-    // AutoCards has an explicitly immutable domain: HOOK, TEXT, and STOP
     const HOOK = inHook;
     const TEXT = ((typeof inText === "string") && inText) || "\n";
     const STOP = (inStop === true);
-    // AutoCards returns a pseudoimmutable codomain which is initialized only once before being read and returned
     const CODOMAIN = new Const().declare();
-    // Transient sets for high-performance lookup
     const [used, bans, auto, forenames, surnames] = Array.from({length: 5}, () => new Set());
     const memoized = new Map();
-    // Holds a reference to the data card singleton, remains unassigned unless required
     let data = null;
-    // Validate globalThis.text
     text = ((typeof text === "string") && text) || "\n";
     const AC = (function() {
         if (state.AutoCards && typeof state.AutoCards === 'object' && state.AutoCards.config) {
@@ -250,7 +219,7 @@ function AutoCards(inHook, inText, inStop) {
         }
 
         const dataVariants = getDataVariants();
-        data = getSingletonCard(false, O.f({...dataVariants.critical}), O.f({...dataVariants.debug}));
+        data = getSingletonCard(false, O.f({...dataVariants.critical}));
 
         if (data && data.description) {
             try {
@@ -259,109 +228,61 @@ function AutoCards(inHook, inText, inStop) {
                     return parsed;
                 }
             } catch (e) {
-                // JSON parsing failed, fall through to reinitialize
             }
         }
 
-        // AC is malformed, reinitialize with default values
         return {
-            // In-game configurable parameters
             config: { ...CONFIG },
-            // Collection of various short-term signals passed forward in time
             signal: {
-                // API: Suspend nearly all Auto-Cards processes
                 emergencyHalt: false,
-                // API: Forcefully toggle Auto-Cards on or off
                 forceToggle: null,
-                // API: Banned titles were externally overwritten
                 overrideBans: 0,
-                // Signal the construction of the opposite control card during the upcoming onOutput hook
                 swapControlCards: false,
-                // Signal a limited recheck of recent title candidates following a retry or erase
                 recheckRetryOrErase: false,
-                // Signal an upcoming onOutput text replacement
                 outputReplacement: "",
-                // info.maxChars is only defined onContext but must be accessed during other hooks too
                 maxChars: Math.abs(info?.maxChars || 3200),
-                // An error occured within the isolateLSIv2 scope during an earlier hook
                 upstreamError: ""
             },
-            // Moderates the generation of new story card entries
             generation: {
-                // Number of story progression turns between card generations
-                cooldown: validateCooldown(underQuarterInteger(validateCooldown(CONFIG.cardCreationCooldown))),
-                // Continues prompted so far
+                cooldown: validateCooldown(underQuarterInteger(validateCooldown(CONFIG.addCardCooldown))),
                 completed: 0,
-                // Upper limit on consecutive continues
                 permitted: 34,
-                // Properties of the incomplete story card
                 workpiece: O.f({}),
-                // Pending card generations
                 pending: [],
             },
-            // Moderates the compression of story card memories
             compression: {
-                // Continues prompted so far
                 completed: 0,
-                // A title header reference key for this auto-card
                 titleKey: "",
-                // The full and proper title
                 vanityTitle: "",
-                // Response length estimate used to compute # of outputs remaining
                 responseEstimate: 1400,
-                // Indices [0, n] of oldMemoryBank memories used to build the current memory construct
                 lastConstructIndex: -1,
-                // Bank of card memories awaiting compression
                 oldMemoryBank: [],
-                // Incomplete bank of newly compressed card memories
                 newMemoryBank: [],
             },
-            // Prevents incompatibility issues borne of state.message modification
             message: {
-                // Last turn's state.message
                 previous: getStateMessage(),
-                // API: Allow Auto-Cards to post messages?
                 suppress: false,
-                // Pending Auto-Cards message(s)
                 pending: [],
-                // Counter to track all Auto-Cards message events
                 event: 0
             },
-            // Timekeeper used for temporal events
             chronometer: {
-                // Previous turn's measurement of info.actionCount
                 turn: getTurn(),
-                // Whether or not various turn counters should be stepped (falsified by retry actions)
                 step: true,
-                // Number of consecutive turn interruptions
                 amnesia: 0,
-                // API: Postpone Auto-Cards externalities for n many turns
                 postpone: 0,
             },
-            // Scalable atabase to store dynamic game information
             database: {
-                // Words are pale shadows of forgotten names. As names have power, words have power
                 titles: {
-                    // A transient array of known titles parsed from card titles, entry title headers, and trigger keywords
                     used: [],
-                    // Titles banned from future card generation attempts and various maintenance procedures
                     banned: [...CONFIG.bannedTitlesList],
-                    // Potential future card titles and their turns of occurrence
                     candidates: [],
-                    // Helps avoid rechecking the same action text more than once, generally
                     lastActionParsed: -1,
-                    // Ensures weird combinations of retry/erase events remain predictable
                     lastTextHash: "%@%",
-                    // Newly banned titles which will be added to the config card
                     pendingBans: [],
-                    // Currently banned titles which will be removed from the config card
                     pendingUnbans: []
                 },
-                // Memories are parsed from context and handled by various operations (basically magic)
                 memories: {
-                    // Dynamic store of 'story card -> memory' conceptual relations
                     associations: {},
-                    // Serialized hashset of the 2000 most recent near-duplicate memories purged from context
                     duplicates: "%@%"
                 },
                 inventory: {
@@ -387,42 +308,28 @@ function AutoCards(inHook, inText, inStop) {
         AC.signal.maxChars = Math.abs(info?.maxChars || AC.signal.maxChars);
         if (HOOK === null) {
             if (/Recent\s*Story\s*:/i.test(text)) {
-                // AutoCards(null) is always invoked once after being declared within the shared library
-                // Context must be cleaned before passing text to the context modifier
-                // This measure is taken to ensure compatability with other scripts
-                // First, remove all command, continue, and comfirmation messages from the context window
                 text = (text
-                    // Hide the guide
                     .replace(/\s*>>>\s*Detailed\s*Guide\s*:[\s\S]*?<<<\s*/gi, "\n\n")
-                    // Excise all /AC command messages
                     .replace(/\s*>>>\s*Auto-Cards\s*has\s*been\s*enabled!\s*<<<\s*/gi, " ")
                     .replace(/^.*\/\s*A\s*C.*$/gmi, "%@%")
                     .replace(/\s*%@%\s*/g, " ")
-                    // Consolidate all consecutive continue messages into placeholder substrings
                     .replace(/(?:(?:\s*>>>\s*please\s*select\s*"continue"\s*\([\s\S]*?\)\s*<<<\s*)+)/gi, message => {
-                        // Replace all continue messages with %@+%-patterned substrings
                         return (
-                            // The # of "@" symbols corresponds with the # of consecutive continue messages
                             "%" + "@".repeat(
-                                // Count the number of consecutive continue message occurrences
                                 (message.match(/>>>\s*please\s*select\s*"continue"\s*\([\s\S]*?\)\s*<<</gi) || []).length
                             ) + "%"
                         );
                     })
-                    // Situationally replace all placeholder substrings with either spaces or double newlines
                     .replace(/%@+%/g, (match, matchIndex, intermediateText) => {
-                        // Check the case of the next char following the match to decide how to replace it
                         let i = matchIndex + match.length;
                         let nextChar = intermediateText[i];
                         if (nextChar === undefined) {
                             return " ";
                         } else if (/^[A-Z]$/.test(nextChar)) {
-                            // Probably denotes a new sentence/paragraph
                             return "\n\n";
                         } else if (/^[a-z]$/.test(nextChar)) {
                             return " ";
                         }
-                        // The first nextChar was a weird punctuation char, find the next non-whitespace char
                         do {
                             i++;
                             nextChar = intermediateText[i];
@@ -431,13 +338,10 @@ function AutoCards(inHook, inText, inStop) {
                             }
                         } while (/\s/.test(nextChar));
                         if (nextChar === nextChar.toUpperCase()) {
-                            // Probably denotes a new sentence/paragraph
                             return "\n\n";
                         }
-                        // Returning " " probably indicates a previous output's incompleteness
                         return " ";
                     })
-                    // Remove all comfirmation requests and responses
                     .replace(/\s*\n*.*CONFIRM\s*DELETE.*\n*\s*/gi, confirmation => {
                         if (confirmation.includes("<<<")) {
                             return " ";
@@ -445,8 +349,6 @@ function AutoCards(inHook, inText, inStop) {
                             return "";
                         }
                     })
-                    // Remove dumb memories from the context window
-                    // (Latitude, if you're reading this, please give us memoryBank read/write access 😭)
                     .replace(/(Memories\s*:)\s*([\s\S]*?)\s*(Recent\s*Story\s*:|$)/i, (_, left, memories, right) => {
                         return (left + "\n" + (memories
                             .split("\n")
@@ -466,30 +368,18 @@ function AutoCards(inHook, inText, inStop) {
                             }
                         })());
                     })
-                    // Remove LSIv2 error messages
                     .replace(/(?:\s*>>>[\s\S]*?<<<\s*)+/g, " ")
                 );
                 if (!shouldProceed()) {
-                    // Whenever Auto-Cards is inactive, remove auto card title headers from contextualized story card entries
                     text = (text
                         .replace(/\s*{\s*titles?\s*:[\s\S]*?}\s*/gi, "\n\n")
                         .replace(/World\s*Lore\s*:\s*/i, "World Lore:\n")
                     );
-                    // Otherwise, implement a more complex version of this step within the (HOOK === "context") scope of AutoCards
                 }
             }
             CODOMAIN.initialize(null);
         } else {
-            // AutoCards was (probably) called without arguments, return an external API to allow other script creators to programmatically govern the behavior of Auto-Cards from elsewhere within their own scripts
             CODOMAIN.initialize({API: O.f(Object.fromEntries(Object.entries({
-                // Call these API functions like so: AutoCards().API.nameOfFunction(argumentsOfFunction)
-                /*** Postpones internal Auto-Cards events for a specified number of turns
-                * 
-                * @function
-                * @param {number} turns A non-negative integer representing the number of turns to postpone events
-                * @returns {Object} An object containing cooldown values affected by the postponement
-                * @throws {Error} If turns is not a non-negative integer
-                */
                 postponeEvents: function(turns) {
                     if (Number.isInteger(turns) && (0 <= turns)) {
                         AC.chronometer.postpone = turns;
@@ -504,13 +394,6 @@ function AutoCards(inHook, inText, inStop) {
                         addCardNextCooldown: AC.config.addCardCooldown
                     };
                 },
-                /*** Sets or clears the emergency halt flag to pause Auto-Cards operations
-                * 
-                * @function
-                * @param {boolean} shouldHalt A boolean value indicating whether to engage (true) or disengage (false) emergency halt
-                * @returns {boolean} The value that was set
-                * @throws {Error} If called with a non-boolean argument
-                */
                 emergencyHalt: function(shouldHalt) {
                     if (typeof shouldHalt !== "boolean") {
                         throw new Error(
@@ -520,13 +403,6 @@ function AutoCards(inHook, inText, inStop) {
                     AC.signal.emergencyHalt = shouldHalt;
                     return shouldHalt;
                 },
-                /*** Enables or disables state.message assignments from Auto-Cards
-                * 
-                * @function
-                * @param {boolean} shouldSuppress If true, suppresses all Auto-Cards messages; false enables them
-                * @returns {Array} The current pending messages after setting suppression
-                * @throws {Error} If shouldSuppress is not a boolean
-                */
                 suppressMessages: function(shouldSuppress) {
                     if (typeof shouldSuppress === "boolean") {
                         AC.message.suppress = shouldSuppress;
@@ -537,13 +413,6 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return AC.message.pending;
                 },
-                /*** Toggles Auto-Cards behavior or sets it directly
-                * 
-                * @function
-                * @param {boolean|null|undefined} toggleType If undefined, toggles the current state. If boolean or null, sets the state accordingly
-                * @returns {boolean|null|undefined} The state that was set or inferred
-                * @throws {Error} If toggleType is not a boolean, null, or undefined
-                */
                 toggle: function(toggleType) {
                     if (toggleType === undefined) {
                         if (AC.signal.forceToggle !== null) {
@@ -562,31 +431,7 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return toggleType;
                 },
-                /*** Generates a new card using optional prompt details or a request object
-                * 
-                * @function
-                * @param {Object|string} request A request object with card parameters or a string representing the title
-                * @param {string} [extra1] Optional entryPromptDetails if using string mode
-                * @param {string} [extra2] Optional entryStart if using string mode
-                * @returns {boolean} Did the generation attempt succeed or fail
-                * @throws {Error} If the request is not valid or missing a title
-                */
                 generateCard: function(request, extra1, extra2) {
-                    // Function call guide:
-                    // AutoCards().API.generateCard({
-                    //     // All properties except 'title' are optional
-                    //     type: "card type, defaults to 'class' for ease of filtering",
-                    //     title: "card title",
-                    //     keysStart: "preexisting card triggers",
-                    //     entryStart: "preexisting card entry",
-                    //     entryPrompt: "prompt the AI will use to complete this entry",
-                    //     entryPromptDetails: "extra details to include with this card's prompt",
-                    //     entryLimit: 750, // target character count for the generated entry
-                    //     description: "card notes",
-                    //     memoryStart: "preexisting card memory",
-                    //     memoryUpdates: true, // card updates when new relevant memories are formed
-                    //     memoryLimit: 2750, // max characters before the card memory is compressed
-                    // });
                     if (typeof request === "string") {
                         request = {title: request};
                         if (typeof extra1 === "string") {
@@ -604,15 +449,6 @@ function AutoCards(inHook, inText, inStop) {
                     Internal.getUsedTitles(true);
                     return Internal.generateCard(request);
                 },
-                /*** Regenerates a card by title or object reference, optionally preserving or modifying its input info
-                *
-                * @function
-                * @param {Object|string} request A card object reference or title string for the card to be regenerated
-                * @param {boolean} [useOldInfo=true] If true, preserves old info in the new generation; false omits it
-                * @param {string} [newInfo=""] Additional info to append to the generation prompt
-                * @returns {boolean} True if regeneration succeeded; false otherwise
-                * @throws {Error} If the request format is invalid, or if the second or third parameters are the wrong types
-                */
                 redoCard: function(request, useOldInfo = true, newInfo = "") {
                     if (typeof request === "string") {
                         request = {title: request};
@@ -632,14 +468,6 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return Internal.redoCard(request, useOldInfo, newInfo);
                 },
-                /*** Flags or unflags a card as an auto-card, controlling its automatic generation behavior
-                *
-                * @function
-                * @param {Object|string} targetCard The card object or title to mark/unmark as an auto-card
-                * @param {boolean} [setOrUnset=true] If true, marks the card as an auto-card; false removes the flag
-                * @returns {boolean} True if the operation succeeded; false if the card was invalid or already matched the target state
-                * @throws {Error} If the arguments are invalid types
-                */
                 setCardAsAuto: function(targetCard, setOrUnset = true) {
                     if (isTitleInObj(targetCard)) {
                         targetCard = targetCard.title;
@@ -676,14 +504,6 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return true;
                 },
-                /*** Appends a memory to a story card's memory bank
-                *
-                * @function
-                * @param {Object|string} targetCard A card object reference or title string
-                * @param {string} newMemory The memory text to add
-                * @returns {boolean} True if the memory was added; false if it was empty, already present, or the card was not found
-                * @throws {Error} If the inputs are not a string or valid card object reference
-                */
                 addCardMemory: function(targetCard, newMemory) {
                     if (isTitleInObj(targetCard)) {
                         targetCard = targetCard.title;
@@ -727,37 +547,15 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return true;
                 },
-                /*** Removes all previously generated auto-cards and resets various states
-                *
-                * @function
-                * @returns {number} The number of cards that were removed
-                */
                 eraseAllAutoCards: function() {
                     return Internal.eraseAllAutoCards();
                 },
-                /*** Retrieves an array of titles currently used by the adventure's story cards
-                *
-                * @function
-                * @returns {Array<string>} An array of strings representing used titles
-                */
                 getUsedTitles: function() {
                     return Internal.getUsedTitles(true);
                 },
-                /*** Retrieves an array of banned titles
-                *
-                * @function
-                * @returns {Array<string>} An array of banned title strings
-                */
                 getBannedTitles: function() {
                     return Internal.getBannedTitles();
                 },
-                /*** Sets the banned titles array, replacing any previously banned titles
-                *
-                * @function
-                * @param {string|Array<string>} titles A comma-separated string or array of strings representing titles to ban
-                * @returns {Object} An object containing oldBans and newBans arrays
-                * @throws {Error} If the input is neither a string nor an array of strings
-                */
                 setBannedTitles: function(titles) {
                     const codomain = {oldBans: AC.database.titles.banned};
                     if (Array.isArray(titles) && titles.every(title => (typeof title === "string"))) {
@@ -781,17 +579,6 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return codomain;
                 },
-                /*** Creates a new story card with the specified parameters
-                *
-                * @function
-                * @param {string|Object} title Card title string or full card template object containing all fields
-                * @param {string} [entry] The entry text for the card
-                * @param {string} [type] The card type (e.g., "character", "location")
-                * @param {string} [keys] The keys (triggers) for the card
-                * @param {string} [description] The notes or memory bank of the card
-                * @param {number} [insertionIndex] Optional index to insert the card at a specific position within storyCards
-                * @returns {Object|null} The created card object reference, or null if creation failed
-                */
                 buildCard: function(title, entry, type, keys, description, insertionIndex) {
                     if (isTitleInObj(title)) {
                         type = title.type ?? type;
@@ -820,14 +607,6 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return null;
                 },
-                /*** Finds and returns story cards satisfying a user-defined condition
-                *
-                * @function
-                * @param {Function} predicate A function which takes a card and returns true if it matches
-                * @param {boolean} [getAll=false] If true, returns all matching cards; otherwise returns the first match
-                * @returns {Object|Array<Object>|null} A single card object reference, an array of cards, or null if no match is found
-                * @throws {Error} If the predicate is not a function or getAll is not a boolean
-                */
                 getCard: function(predicate, getAll = false) {
                     if (typeof predicate !== "function") {
                         throw new Error(
@@ -840,14 +619,6 @@ function AutoCards(inHook, inText, inStop) {
                     }
                     return Internal.getCard(predicate, getAll);
                 },
-                /*** Removes story cards based on a user-defined condition or by direct reference
-                *
-                * @function
-                * @param {Function|Object} predicate A predicate function or a card object reference
-                * @param {boolean} [eraseAll=false] If true, removes all matching cards; otherwise removes the first match
-                * @returns {boolean|number} True if a single card was removed, false if none matched, or the number of cards erased
-                * @throws {Error} If the inputs are not a valid predicate function, card object, or boolean
-                */
                 eraseCard: function(predicate, eraseAll = false) {
                     if (isTitleInObj(predicate) && storyCards.includes(predicate)) {
                         return eraseCard(predicate);
@@ -898,11 +669,9 @@ function AutoCards(inHook, inText, inStop) {
     } else if (AC.signal.emergencyHalt) {
         switch(HOOK) {
         case "context": {
-            // AutoCards was called within the context modifier
             advanceChronometer();
             break; }
         case "output": {
-            // AutoCards was called within the output modifier
             concludeEmergency();
             const previousAction = readPastAction(0);
             if (isDoSayStory(previousAction.type) && /escape\s*emergency\s*halt/i.test(previousAction.text)) {
@@ -912,13 +681,8 @@ function AutoCards(inHook, inText, inStop) {
         }
         CODOMAIN.initialize(TEXT);
     } else if (CONFIG.enabled) {
-        // Auto-Cards is currently enabled
-        // "text" represents the original text which was present before any scripts were executed
-        // "TEXT" represents the script-modified version of "text" which AutoCards was called with
-        // This dual scheme exists to ensure Auto-Cards is safely compatible with other scripts
         switch(HOOK) {
         case "input": {
-            // AutoCards was called within the input modifier
             if (NARRATIVE_GUIDANCE.ENABLED) {
                 if (state.heat == undefined){
                     state.heat = NARRATIVE_GUIDANCE.initialHeatValue
@@ -948,10 +712,6 @@ function AutoCards(inHook, inText, inStop) {
                         state.heat += conflictCount * NARRATIVE_GUIDANCE.playerIncreaseHeatImpact
                         if (conflictCount >= NARRATIVE_GUIDANCE.threshholdPlayerIncreaseTemperature){
                             state.storyTemperature += conflictCount * NARRATIVE_GUIDANCE.playerIncreaseTemperatureImpact
-                            log(`Detected ${conflictCount} conflict words (Player). Increasing heat & temperature.`)
-                        }
-                        else{
-                            log(`Detected ${conflictCount} conflict words (Player). Increasing heat.`)
                         }
                     }
 
@@ -959,10 +719,6 @@ function AutoCards(inHook, inText, inStop) {
                         state.heat -= calmingCount * NARRATIVE_GUIDANCE.playerDecreaseHeatImpact
                         if (calmingCount >= NARRATIVE_GUIDANCE.threshholdPlayerDecreaseTemperature){
                             state.storyTemperature -= calmingCount * NARRATIVE_GUIDANCE.playerDecreaseTemperatureImpact
-                            log(`Detected ${calmingCount} calming words (Player). Decreasing heat & temperature.`)
-                        }
-                        else{
-                            log(`Detected ${calmingCount} calming words (Player). Decreasing heat.`)
                         }
                     }
                 }
@@ -971,32 +727,26 @@ function AutoCards(inHook, inText, inStop) {
                 if (state.chance <= NARRATIVE_GUIDANCE.randomExplosionChance){
                     state.heat = state.heat + NARRATIVE_GUIDANCE.randomExplosionHeatIncreaseValue
                     state.storyTemperature = state.storyTemperature + NARRATIVE_GUIDANCE.randomExplosionTemperatureIncreaseValue
-                    log("!WARNING! Explosion Occured! (+" + NARRATIVE_GUIDANCE.randomExplosionHeatIncreaseValue + " heat) (+" + NARRATIVE_GUIDANCE.randomExplosionTemperatureIncreaseValue + " temperature)")
                 }
                 if(state.cooldownMode == false && state.overheatMode == false){
                     state.heat = state.heat + NARRATIVE_GUIDANCE.heatIncreaseValue
-                    log("Heat: " + state.heat)
                 }
                 state.chance = randomint(1, NARRATIVE_GUIDANCE.temperatureIncreaseChance)
                 if (state.chance <= state.heat){
                     state.heat = 0
                     state.storyTemperature = state.storyTemperature + NARRATIVE_GUIDANCE.temperatureIncreaseValue
-                    log("Temperature Increased. Temperature is now " + state.storyTemperature)
                 }
                 if (state.storyTemperature >= NARRATIVE_GUIDANCE.maximumTemperature){
                     if (state.cooldownMode == false && state.overheatMode == false){
                     state.overheatMode = true
                     state.overheatTurnsLeft = NARRATIVE_GUIDANCE.overheatTimer
-                    log("Overheat Mode Activated")
                     }
                 }
                 if (state.cooldownMode == true){
                     state.cooldownTurnsLeft --
-                    log("Cooldown Timer: " + state.cooldownTurnsLeft)
                     state.storyTemperature = state.storyTemperature - NARRATIVE_GUIDANCE.cooldownRate
                     if(state.cooldownTurnsLeft <= 0){
                     state.cooldownMode = false
-                    log("Cooldown Mode Disabled")
                     }
                 }
                 else{
@@ -1008,18 +758,15 @@ function AutoCards(inHook, inText, inStop) {
                                 state.overheatMode = false
                                 state.cooldownMode = true
                                 state.cooldownTurnsLeft = NARRATIVE_GUIDANCE.cooldownTimer
-                                log("Cooldown Mode Activated")
                             }
                         } else {
                             state.overheatTurnsLeft --
-                            log("Overheat Timer: " + state.overheatTurnsLeft)
                             if (state.overheatTurnsLeft <= 0){
                                 state.storyTemperature = state.storyTemperature - NARRATIVE_GUIDANCE.overheatReductionForTemperature
                                 state.heat = state.heat - NARRATIVE_GUIDANCE.overheatReductionForHeat
                                 state.overheatMode = false
                                 state.cooldownMode = true
                                 state.cooldownTurnsLeft = NARRATIVE_GUIDANCE.cooldownTimer
-                                log("Cooldown Mode Activated")
                             }
                         }
                     }
@@ -1027,11 +774,9 @@ function AutoCards(inHook, inText, inStop) {
 
                 if (state.storyTemperature > NARRATIVE_GUIDANCE.trueMaximumTemperature){
                     state.storyTemperature = NARRATIVE_GUIDANCE.trueMaximumTemperature
-                    log("Temperature over maximum, recalibrating...")
                 }
                 if (state.storyTemperature <= 0){
                     state.storyTemperature = 1
-                    log("Temperature under minimum, recalibrating...")
                 }
 
                 if (state.cooldownMode == false){
@@ -1060,23 +805,19 @@ function AutoCards(inHook, inText, inStop) {
             if ((AC.config.deleteAllAutoCards === false) && /CONFIRM\s*DELETE/i.test(TEXT)) {
                 CODOMAIN.initialize("CONFIRM DELETE -> Success!");
             } else if (TEXT.startsWith(" ") && readPastAction(0).text.endsWith("\n")) {
-                // Just a simple little formatting bugfix for regular AID story actions
                 CODOMAIN.initialize(getPrecedingNewlines() + TEXT.replace(/^\s+/, ""));
             } else {
                 CODOMAIN.initialize(TEXT);
             }
             break; }
         case "context": {
-            // AutoCards was called within the context modifier
             advanceChronometer();
             if (0 < AC.chronometer.postpone) {
                 CODOMAIN.initialize(TEXT);
                 break;
             }
-            // Fully implement Auto-Cards onContext
             const forceStep = AC.signal.recheckRetryOrErase;
             const currentTurn = getTurn();
-            // Create inventory card if it doesn't exist
             let inventoryCard = Internal.getCard(card => card.title === "Inventory");
             if (!inventoryCard) {
                 inventoryCard = Internal.buildCard("Inventory", "You are carrying:", "inventory");
@@ -1089,22 +830,16 @@ function AutoCards(inHook, inText, inStop) {
             Internal.getUsedTitles();
             for (const titleKey in AC.database.memories.associations) {
                 if (isAuto(titleKey)) {
-                    // Reset the lifespan counter
                     AC.database.memories.associations[titleKey][0] = 999;
                 } else if (AC.database.memories.associations[titleKey][0] < 1) {
-                    // Forget this set of memory associations
                     delete AC.database.memories.associations[titleKey];
                 } else if (!isAwaitingGeneration()) {
-                    // Decrement the lifespan counter
                     AC.database.memories.associations[titleKey][0]--;
                 }
             }
-            // This copy of TEXT may be mutated
             let context = TEXT;
             const titleHeaderPatternGlobal = /\s*{\s*titles?\s*:\s*([\s\S]*?)\s*}\s*/gi;
-            // Card events govern the parsing of memories from raw context as well as card memory bank injection
             const cardEvents = (function() {
-                // Extract memories from the initial text (not TEXT as called from within the context modifier!)
                 const contextMemories = (function() {
                     const memoriesMatch = text.match(/Memories\s*:\s*([\s\S]*?)\s*(?:Recent\s*Story\s*:|$)/i);
                     if (!memoriesMatch) {
@@ -1119,13 +854,11 @@ function AutoCards(inHook, inText, inStop) {
                     const seenMemories = new Set();
                     for (const memoryA of uniqueMemories) {
                         if (duplicatesHashed.has(memoryA)) {
-                            // Remove to ensure the insertion order for this duplicate changes
                             duplicatesHashed.remove(memoryA);
                             duplicateMemories.add(memoryA);
                         } else if ((function() {
                             for (const memoryB of seenMemories) {
                                 if (0.42 < similarityScore(memoryA, memoryB)) {
-                                    // This memory is too similar to another memory
                                     duplicateMemories.add(memoryA);
                                     return false;
                                 }
@@ -1136,21 +869,17 @@ function AutoCards(inHook, inText, inStop) {
                         }
                     }
                     if (0 < duplicateMemories.size) {
-                        // Add each near duplicate's hashcode to AC.database.memories.duplicates
-                        // Then remove duplicates from uniqueMemories and the context window
                         for (const duplicate of duplicateMemories) {
                             duplicatesHashed.add(duplicate);
                             uniqueMemories.delete(duplicate);
                             context = context.replaceAll("\n" + duplicate, "");
                         }
-                        // Only the 2000 most recent duplicate memory hashcodes are remembered
                         AC.database.memories.duplicates = duplicatesHashed.latest(2000).serialize();
                     }
                     return uniqueMemories;
                 })();
                 const leftBoundary = "^|\\s|\"|'|—|\\(|\\[|{";
                 const rightBoundary = "\\s|\\.|\\?|!|,|;|\"|'|—|\\)|\\]|}|$";
-                // Murder, homicide if you will, nothing to see here
                 const theKiller = new RegExp("(?:" + leftBoundary + ")the[\\s\\S]*$", "i");
                 const peerageKiller = new RegExp((
                     "(?:" + leftBoundary + ")(?:" + Words.peerage.join("|") + ")(?:" + rightBoundary + ")"
@@ -1167,7 +896,6 @@ function AutoCards(inHook, inText, inStop) {
                         ), "i")).test(contextMemory)) {
                             continue;
                         }
-                        // AC card titles found in active memories will promote card events
                         if (events.has(titleKey)) {
                             events.get(titleKey).pendingMemories.push(contextMemory);
                             continue;
@@ -1183,7 +911,6 @@ function AutoCards(inHook, inText, inStop) {
                     if (!isAuto(title)) {
                         continue;
                     }
-                    // Unique title headers found in context will promote card events
                     const titleKey = title.toLowerCase();
                     if (events.has(titleKey)) {
                         events.get(titleKey).titleHeader = titleHeader;
@@ -1196,11 +923,8 @@ function AutoCards(inHook, inText, inStop) {
                 }
                 return events;
             })();
-            // Remove auto card title headers from active story card entries and contextualize their respective memory banks
-            // Also handle the growth and maintenance of card memory banks
             let isRemembering = false;
             for (const card of storyCards) {
-                // Iterate over each card to handle pending card events and forenames/surnames
                 const titleHeaderMatcher = /^{title: \s*([\s\S]*?)\s*}/;
                 let breakForCompression = isPendingCompression();
                 if (breakForCompression) {
@@ -1225,7 +949,6 @@ function AutoCards(inHook, inText, inStop) {
                         (0 < cardEvent.pendingMemories.length)
                         && /{\s*updates?\s*:\s*true\s*,\s*limits?\s*:[\s\S]*?}/i.test(card.description)
                     ) {
-                        // Add new card memories
                         const associationsHashed = (function() {
                             if (titleKey in AC.database.memories.associations) {
                                 return StringsHashed.deserialize(AC.database.memories.associations[titleKey][1], 65536);
@@ -1237,12 +960,10 @@ function AutoCards(inHook, inText, inStop) {
                         const oldMemories = isolateMemories(extractCardMemories().text);
                         for (let i = 0; i < cardEvent.pendingMemories.length; i++) {
                             if (associationsHashed.has(cardEvent.pendingMemories[i])) {
-                                // Remove first to alter the insertion order
                                 associationsHashed.remove(cardEvent.pendingMemories[i]);
                             } else if (!oldMemories.some(oldMemory => (
                                 (0.8 < similarityScore(oldMemory, cardEvent.pendingMemories[i]))
                             ))) {
-                                // Ensure no near-duplicate memories are appended
                                 card.description += "\n- " + cardEvent.pendingMemories[i];
                             }
                             associationsHashed.add(cardEvent.pendingMemories[i]);
@@ -1257,13 +978,10 @@ function AutoCards(inHook, inText, inStop) {
                         }
                     }
                     if (cardEvent.titleHeader !== "") {
-                        // Replace this card's title header in context
                         const cardMemoriesText = extractCardMemories().text;
                         if (cardMemoriesText === "") {
-                            // This card contains no card memories to contextualize
                             context = context.replace(cardEvent.titleHeader, "\n\n");
                         } else {
-                            // Insert card memories within context and ensure they occur uniquely
                             const cardMemories = cardMemoriesText.split("\n").map(cardMemory => cardMemory.trim());
                             for (const cardMemory of cardMemories) {
                                 if (25 < cardMemory.length) {
@@ -1285,7 +1003,6 @@ function AutoCards(inHook, inText, inStop) {
                 if (breakForCompression) {
                     break;
                 }
-                // Simplify auto-card titles which contain an obvious surname
                 const titleHeaderMatch = card.entry.match(titleHeaderMatcher);
                 if (!titleHeaderMatch) {
                     continue;
@@ -1303,11 +1020,9 @@ function AutoCards(inHook, inText, inStop) {
                 if (oldTitleKey === newTitleKey) {
                     continue;
                 }
-                // Preemptively mitigate some global state considered within the formatTitle scope
                 clearTransientTitles();
                 AC.database.titles.used = ["%@%"];
                 [used, forenames, surnames].forEach(nameset => nameset.add("%@%"));
-                // Premature optimization is the root of all evil
                 const newKey = formatTitle(newTitle).newKey;
                 clearTransientTitles();
                 if (newKey === "") {
@@ -1587,17 +1302,12 @@ function AutoCards(inHook, inText, inStop) {
             }
             function promptGeneration() {
                 repositionAN();
-                // All %{title} placeholders were already filled during this workpiece's initialization
-                // The "%GEN%" substring serves as a temporary delimiter for later context length trucation
                 context = context.trimEnd() + "%@GEN@%\n\n" + (function() {
-                    // For context only, remove the title header from this workpiece's partially completed entry
                     const partialEntry = formatEntry(AC.generation.workpiece.entry);
                     const entryPlaceholderPattern = /(?:[%\$]+\s*|[%\$]*){+\s*entry\s*}+/gi;
                     if (entryPlaceholderPattern.test(AC.generation.workpiece.prompt)) {
-                        // Fill all %{entry} placeholders with the partial entry
                         return AC.generation.workpiece.prompt.replace(entryPlaceholderPattern, partialEntry);
                     } else {
-                        // Append the partial entry to the end of context
                         return AC.generation.workpiece.prompt.trimEnd() + "\n\n" + partialEntry;
                     }
                 })();
@@ -1605,7 +1315,6 @@ function AutoCards(inHook, inText, inStop) {
                 return;
             }
             function repositionAN() {
-                // Move the Author's Note further back in context during card generation (should still be considered)
                 const authorsNotePattern = /\s*(\[\s*Author's\s*note\s*:[\s\S]*\])\s*/i;
                 const authorsNoteMatch = context.match(authorsNotePattern);
                 if (!authorsNoteMatch) {
@@ -1615,7 +1324,6 @@ function AutoCards(inHook, inText, inStop) {
                 context = context.replace(authorsNotePattern, " ").trimStart();
                 const recentStoryPattern = /\s*Recent\s*Story\s*:\s*/i;
                 if (recentStoryPattern.test(context)) {
-                    // Remove author's note from its original position and insert above "Recent Story:\n"
                     context = (context
                         .replace(recentStoryPattern, "\n\n" + authorsNoteMatch[1] + "\n\nRecent Story:\n")
                         .trimStart()
@@ -1632,17 +1340,12 @@ function AutoCards(inHook, inText, inStop) {
                 }
                 const turnRange = boundInteger(1, maxTurn - minTurn);
                 const recencyExponent = Math.log10(turnRange) + 1.85;
-                // Sort the database of available title candidates by relevance
                 AC.database.titles.candidates.sort((a, b) => {
                     return relevanceScore(b) - relevanceScore(a);
                 });
                 function relevanceScore(candidate) {
-                    // weight = (((turn - minTurn) / (maxTurn - minTurn)) + 1)^(log10(maxTurn - minTurn) + 1.85)
                     return candidate.slice(1).reduce((sum, turn) => {
-                        // Apply exponential scaling to give far more weight to recent turns
                         return sum + Math.pow((
-                            // The recency weight's exponent scales by log10(turnRange) + 1.85
-                            // Shhh don't question it 😜
                             ((turn - minTurn) / turnRange) + 1
                         ), recencyExponent);
                     }, 0);
@@ -1660,21 +1363,16 @@ function AutoCards(inHook, inText, inStop) {
             }
             function disableAutoCards() {
                 AC.signal.forceToggle = null;
-                // Auto-Cards has been disabled
                 AC.config.doAC = false;
-                // Deconstruct the "Configure Auto-Cards" story card
                 unbanTitle(configureCardTemplate.title);
                 eraseCard(configureCard);
-                // Signal the construction of "Edit to enable Auto-Cards" during the next onOutput hook
                 AC.signal.swapControlCards = true;
-                // Post a success message
                 notify("Disabled! Use the \"Edit to enable Auto-Cards\" story card to undo");
                 CODOMAIN.initialize(TEXT);
                 return;
             }
             break; }
         case "output": {
-            // AutoCards was called within the output modifier
             if (NARRATIVE_GUIDANCE.ENABLED) {
                 const lowerText = TEXT.toLowerCase()
                 const words = lowerText.split(/\s+/)
@@ -1695,10 +1393,6 @@ function AutoCards(inHook, inText, inStop) {
                     state.heat += conflictCount * NARRATIVE_GUIDANCE.modelIncreaseHeatImpact
                     if (conflictCount >= NARRATIVE_GUIDANCE.threshholdModelIncreaseTemperature){
                     state.storyTemperature += NARRATIVE_GUIDANCE.modelIncreaseTemperatureImpact
-                    log(`Detected ${conflictCount} conflict words (AI). Increasing heat & temperature.`)
-                    }
-                    else{
-                    log(`Detected ${conflictCount} conflict words (AI). Increasing heat.`)
                     }
                 }
 
@@ -1706,21 +1400,15 @@ function AutoCards(inHook, inText, inStop) {
                     state.heat -= calmingCount * NARRATIVE_GUIDANCE.modelDecreaseHeatImpact
                     if (calmingCount >= NARRATIVE_GUIDANCE.threshholdModelDecreaseTemperature){
                     state.storyTemperature -= NARRATIVE_GUIDANCE.modelDecreaseTemperatureImpact
-                    log(`Detected ${calmingCount} calming words (AI). Decreasing heat & temperature.`)
-                    }
-                    else{
-                    log(`Detected ${calmingCount} calming words (AI). Decreasing heat.`)
                     }
                 }
 
                 if (state.storyTemperature > NARRATIVE_GUIDANCE.trueMaximumTemperature){
                     state.storyTemperature = NARRATIVE_GUIDANCE.trueMaximumTemperature
-                    log("Temperature over maximum, recalibrating...")
                 }
 
                 if (state.storyTemperature <= 0){
                     state.storyTemperature = 1
-                    log("Temperature under minimum, recalibrating...")
                 }
 
 
@@ -1728,12 +1416,9 @@ function AutoCards(inHook, inText, inStop) {
                     state.memory.authorsNote = state.authorsNoteStorage
                 }
 
-                log("Heat: " + state.heat)
-                log("Temperature: " + state.storyTemperature)
             }
             const output = prettifyEmDashes(TEXT);
             if (0 < AC.chronometer.postpone) {
-                // Do not capture or replace any outputs during this turn
                 promoteAmnesia();
                 if (permitOutput()) {
                     CODOMAIN.initialize(output);
@@ -1751,8 +1436,6 @@ function AutoCards(inHook, inText, inStop) {
                         textClone.includes("\"")
                         || /(?<=^|\s|—|\(|\[|{)sa(ys?|id)(?=\s|\.|\?|!|,|;|—|\)|\]|}|$)/i.test(textClone)
                     ) {
-                        // Discard full outputs containing "say" or quotations
-                        // To build coherent entries, the AI must not attempt to continue the story
                         return skip(estimateRemainingGens());
                     }
                     const oldSentences = (splitBySentences(formatEntry(AC.generation.workpiece.entry))
@@ -1768,15 +1451,10 @@ function AutoCards(inHook, inText, inStop) {
                         .trim()
                         .replace(/^-+\s*/, "")
                     )).filter(sentence => (
-                        // Remove empty strings
                         (sentence !== "")
-                        // Remove colon ":" headers or other stinky symbols because me no like 😠
                         && !/[#><@]/.test(sentence)
-                        // Remove previously repeated sentences
                         && !oldSentences.some(oldSentence => (0.75 < similarityScore(oldSentence, sentence)))
-                        // Remove repeated sentences from within entryAddition itself
                         && ![...seenSentences].some(seenSentence => (0.75 < similarityScore(seenSentence, sentence)))
-                        // Simply ensure this sentence is henceforth unique
                         && seenSentences.add(sentence)
                     )).join(" ").trim() + " ";
                     if (entryAddition === " ") {
@@ -1802,14 +1480,12 @@ function AutoCards(inHook, inText, inStop) {
                                 }
                                 continue;
                             }
-                            // Lines only matter for initial entries provided via AutoCards().API.generateCard
                             const lines = sentences[i].split("\n");
                             for (let j = lines.length - 1; 0 <= j; j--) {
                                 lines.splice(j, 1);
                                 sentences[i] = lines.join("\n");
                                 truncatedEntry = sentences.join("").trimEnd();
                                 if (truncatedEntry.length <= AC.generation.workpiece.limit) {
-                                    // Exit from both loops
                                     exit = true;
                                     break;
                                 }
@@ -1819,11 +1495,9 @@ function AutoCards(inHook, inText, inStop) {
                             }
                         }
                         if (truncatedEntry.length < 150) {
-                            // Disregard the previous sentence/line-based truncation attempt
                             AC.generation.workpiece.entry = limitString(
                                 AC.generation.workpiece.entry, AC.generation.workpiece.limit
                             );
-                            // Attempt to remove the last word/fragment
                             truncatedEntry = AC.generation.workpiece.entry.replace(/\s*\S+$/, "");
                             if (150 <= truncatedEntry) {
                                 AC.generation.workpiece.entry = truncatedEntry;
@@ -1939,25 +1613,19 @@ function AutoCards(inHook, inText, inStop) {
                 AC.compression.completed++;
                 const compressionsRemaining = (function() {
                     const newMemory = (textClone
-                        // Remove some dumb stuff
                         .replace(/^[\s\S]*:/g, "")
                         .replace(/[\*_~#><@\[\]{}`\\]/g, " ")
-                        // Remove bullets
                         .trim().replace(/^-+\s*/, "").replace(/\s*-+$/, "").replace(/\s*-\s+/g, " ")
-                        // Condense consecutive whitespace
                         .replace(/\s+/g, " ")
                     );
                     if ((AC.compression.oldMemoryBank.length - 1) <= AC.compression.lastConstructIndex) {
-                        // Terminate this compression cycle; the memory construct cannot grow any further
                         AC.compression.newMemoryBank.push(newMemory);
                         return 0;
                     } else if ((newMemory.trim() !== "") && (newMemory.length < buildMemoryConstruct().length)) {
-                        // Good output, preserve and then proceed onwards
                         AC.compression.oldMemoryBank.splice(0, AC.compression.lastConstructIndex + 1);
                         AC.compression.lastConstructIndex = -1;
                         AC.compression.newMemoryBank.push(newMemory);
                     } else {
-                        // Bad output, discard and then try again
                         AC.compression.responseEstimate += 200;
                     }
                     return boundInteger(1, joinMemoryBank(AC.compression.oldMemoryBank).length) / AC.compression.responseEstimate;
@@ -1974,7 +1642,6 @@ function AutoCards(inHook, inText, inStop) {
                             /(?<={\s*updates?\s*:[\s\S]*?,\s*limits?\s*:[\s\S]*?})[\s\S]*$/i
                         );
                         if (memoryHeaderMatch) {
-                            // Update the card memory bank
                             notify("Memories for \"" + AC.compression.vanityTitle + "\" were successfully summarized!");
                             card.description = card.description.replace(memoryHeaderMatch[0], (
                                 "\n" + joinMemoryBank(AC.compression.newMemoryBank)
@@ -2020,7 +1687,6 @@ function AutoCards(inHook, inText, inStop) {
             CODOMAIN.initialize(TEXT);
             break; }
         }
-        // Get an individual story card reference via titleKey
         function getAutoCard(titleKey) {
             return Internal.getCard(card => card.entry.toLowerCase().startsWith("{title: " + titleKey + "}"));
         }
@@ -2030,7 +1696,6 @@ function AutoCards(inHook, inText, inStop) {
                 .join(" ")
             );
         }
-        // Estimate the average AI response char count based on recent continue outputs
         function estimateResponseLength() {
             if (!Array.isArray(history) || (history.length === 0)) {
                 return -1;
@@ -2056,12 +1721,10 @@ function AutoCards(inHook, inText, inStop) {
                 }, 0) / charCounts.length
             ));
         }
-        // Evalute how similar two strings are on the range [0, 1]
         function similarityScore(strA, strB) {
             if (strA === strB) {
                 return 1;
             }
-            // Normalize both strings for further comparison purposes
             const [cleanA, cleanB] = [strA, strB].map(str => limitString((str
                 .replace(/[0-9\s]/g, " ")
                 .trim()
@@ -2071,9 +1734,7 @@ function AutoCards(inHook, inText, inStop) {
             if (cleanA === cleanB) {
                 return 1;
             }
-            // Compute the Levenshtein distance
             const [lengthA, lengthB] = [cleanA, cleanB].map(str => str.length);
-            // I love DP ❤️ (dynamic programming)
             const dp = Array(lengthA + 1).fill(null).map(() => Array(lengthB + 1).fill(0));
             for (let i = 0; i <= lengthA; i++) {
                 dp[i][0] = i;
@@ -2084,25 +1745,19 @@ function AutoCards(inHook, inText, inStop) {
             for (let i = 1; i <= lengthA; i++) {
                 for (let j = 1; j <= lengthB; j++) {
                     if (cleanA[i - 1] === cleanB[j - 1]) {
-                        // No cost if chars match, swipe right 😎
                         dp[i][j] = dp[i - 1][j - 1];
                     } else {
                         dp[i][j] = Math.min(
-                            // Deletion
                             dp[i - 1][j] + 1,
-                            // Insertion
                             dp[i][j - 1] + 1,
-                            // Substitution
                             dp[i - 1][j - 1] + 1
                         );
                     }
                 }
             }
-            // Convert distance to similarity score (1 - (distance / maxLength))
             return 1 - (dp[lengthA][lengthB] / Math.max(lengthA, lengthB));
         }
         function splitBySentences(prose) {
-            // Don't split sentences on honorifics or abbreviations such as "Mr.", "Mrs.", "etc."
             return (prose
                 .replace(new RegExp("(?<=\\s|\"|\\(|—|\\[|'|{|^)(?:" + ([...Words.honorifics, ...Words.abbreviations]
                     .map(word => word.replace(".", ""))
@@ -2223,160 +1878,7 @@ function AutoCards(inHook, inText, inStop) {
             falses: () => [
                 "false", "f", "no", "n", "off"
             ],
-            guide: () => prose(
-                ">>> Detailed Guide:",
-                "",
-                Words.delimiter,
-                "",
-                "💡 What is Auto-Cards?",
-                "Auto-Cards is a plug-and-play script for AI Dungeon that watches your story and automatically writes plot-relevant story cards during normal gameplay. A forgetful AI breaks my immersion, therefore my primary goal was to address the \"object permanence problem\" by extending story cards and memories with deeper automation. Auto-Cards builds a living reference of your adventure's world as you go. For your own convenience, all of this stuff is handled in the background. Though you're certainly welcome to customize various settings for more precise control",
-                "",
-                Words.delimiter,
-                "",
-                " 📌 Main Features",
-                "- Detects named entities from your story and periodically writes new cards",
-                "- Smart long-term memory updates and summaries for important cards",
-                "- Fully customizable AI card generation and memory summarization prompts",
-                "- Free and open source for anyone to use within their own projects",
-                "- Compatible with other scripts and includes an external API",
-                "",
-                Words.delimiter,
-                "",
-                "⚙️ Config Settings",
-                "You may, at any time, fine-tune your settings in-game by editing their values within the config card's entry section. Simply swap true/false or tweak numbers where appropriate",
-                "",
-                "> Disable Auto-Cards:",
-                "Turns the whole system off if true",
-                "",
-                "> Show detailed guide:",
-                "If true, shows this player guide in-game",
-                "",
-                "> Delete all automatic story cards:",
-                "Removes every auto-card present in your adventure",
-                "",
-                "> Reset all config settings and prompts:",
-                "Restores all settings and prompts to their original default values",
-                "",
-                "> Pin this config card near the top:",
-                "Keeps the config card pinned high on your cards list",
-                "",
-                "> Minimum turns cooldown for new cards:",
-                "How many turns (minimum) to wait between generating new cards. Using 9999 will pause periodic card generation while still allowing card memory updates to continue",
-                "",
-                "> New cards use a bulleted list format:",
-                "If true, new entries will use bullet points instead of pure prose",
-                "",
-                "> Maximum entry length for new cards:",
-                "Caps how long newly generated card entries can be (in characters)",
-                "",
-                "> New cards perform memory updates:",
-                "If true, new cards will automatically experience memory updates over time",
-                "",
-                "> Card memory bank preferred length:",
-                "Character count threshold before card memories are summarized to save space",
-                "",
-                "> Memory summary compression ratio:",
-                "Controls how much to compress when summarizing long card memory banks",
-                "(ratio = 10 * old / new ... such that 25 -> 2.5x shorter)",
-                "",
-                "> Exclude all-caps from title detection:",
-                "Prevents all-caps words like \"RUN\" from being parsed as viable titles",
-                "",
-                "> Also detect titles from player inputs:",
-                "Allows your typed Do/Say/Story action inputs to help suggest new card topics. Set to false if you have bad grammar, or if you're German (due to idiosyncratic noun capitalization habits)",
-                "",
-                "> Minimum turns age for title detection:",
-                "How many actions back the script looks when parsing recent titles from your story",
-                "",
-                Words.delimiter,
-                "",
-                "✏️ AI Prompts",
-                "You may specify how the AI handles story card processes by editing either of these two prompts within the config card's notes section",
-                "",
-                "> AI prompt to generate new cards:",
-                "Used when Auto-Cards writes a new card entry. It tells the AI to focus on important plot stuff, avoid fluff, and write in a consistent, polished style. I like to add some personal preferences here when playing my own adventures. \"%{title}\" and \"%{entry}\" are dynamic placeholders for their namesakes",
-                "",
-                "> AI prompt to summarize card memories:",
-                "Summarizes older details within card memory banks to keep everything concise and neat over the long-run. Maintains only the most important details, written in the past tense. \"%{title}\" and \"%{memory}\" are dynamic placeholders for their namesakes",
-                "",
-                Words.delimiter,
-                "",
-                "⛔ Banned Titles List",
-                "This list prevents new cards from being created for super generic or unhelpful titles such as North, Tuesday, or December. You may edit these at the bottom of the config card's notes section. Capitalization and plural/singular forms are handled for you, so no worries about that",
-                "",
-                "> Titles banned from automatic new card generation:",
-                "North, East, South, West, and so on...",
-                "",
-                Words.delimiter,
-                "",
-                "🔧 External API Functions (quick summary)",
-                "These are mainly for other JavaScript programmers to use, so feel free to ignore this section if that doesn't apply to you. Anyway, here's what each one does in plain terms, though please do refer to my source code for the full documentation",
-                "",
-                "AutoCards().API.postponeEvents();",
-                "Pauses Auto-Cards activity for n many turns",
-                "",
-                "AutoCards().API.emergencyHalt();",
-                "Emergency stop or resume",
-                "",
-                "AutoCards().API.suppressMessages();",
-                "Hides Auto-Cards toasts by preventing assignment to state.message",
-                "",
-                "AutoCards().API.debugLog();",
-                "Writes to the debug log card",
-                "",
-                "AutoCards().API.toggle();",
-                "Turns Auto-Cards on/off",
-                "",
-                "AutoCards().API.generateCard();",
-                "Initiates AI generation of the requested card",
-                "",
-                "AutoCards().API.redoCard();",
-                "Regenerates an existing card",
-                "",
-                "AutoCards().API.setCardAsAuto();",
-                "Flags or unflags a card as automatic",
-                "",
-                "AutoCards().API.addCardMemory();",
-                "Adds a memory to a specific card",
-                "",
-                "AutoCards().API.eraseAllAutoCards();",
-                "Deletes all auto-cards",
-                "",
-                "AutoCards().API.getUsedTitles();",
-                "Lists all current card titles and keys",
-                "",
-                "AutoCards().API.getBannedTitles();",
-                "Shows your current banned titles list",
-                "",
-                "AutoCards().API.setBannedTitles();",
-                "Replaces the banned titles list with a new list",
-                "",
-                "AutoCards().API.buildCard();",
-                "Makes a new card from scratch, using exact parameters",
-                "",
-                "AutoCards().API.getCard();",
-                "Finds cards that match a filter",
-                "",
-                "AutoCards().API.eraseCard();",
-                "Deletes cards matching a filter",
-                "",
-                Words.delimiter,
-                "",
-                "🎴 Random Tips",
-                "- The default setup works great out of the box, just play normally and watch your world build itself",
-                "- Enable AI Dungeon's built-in memory system for the best results",
-                "- Gameplay -> AI Models -> Memory System -> Memory Bank -> Toggle-ON to enable",
-                "- \"t\" and \"f\" are valid shorthand for \"true\" and \"false\" inside the config card",
-                "- If Auto-Cards goes overboard with new cards, you can pause it by setting the cooldown config to 9999",
-                "- Write \"{title:}\" anywhere within a regular story card's entry to transform it into an automatic card",
-                "- Feel free to import/export entire story card decks at any time",
-                "- Please copy my source code from here: https://play.aidungeon.com/profile/LewdLeah",
-                "",
-                Words.delimiter,
-                "",
-                "Happy adventuring! ❤️",
-                "Please erase before continuing! <<<"
-            )
+            guide: () => prose("")
         };
         for (const wordList in wordListInitializers) {
             // Define a lazy getter for every word list
@@ -2475,7 +1977,6 @@ function AutoCards(inHook, inText, inStop) {
                     ("title" in pendingWorkpiece) && (title === pendingWorkpiece.title)
                 ))))
             ) {
-                logEvent("The title '" + request.title + "' is invalid or unavailable for card generation", true);
                 return false;
             }
             AC.generation.pending.push(O.s({
@@ -3267,10 +2768,6 @@ function AutoCards(inHook, inText, inStop) {
         }
         return keys;
     }
-    // Returns the template-specified singleton card (or secondary varient) after:
-    // 1) Erasing all inferior duplicates
-    // 2) Repairing damaged titles and keys
-    // 3) Constructing a new singleton card if it doesn't exist
     function getSingletonCard(allowConstruction, templateCard, secondaryCard) {
         let singletonCard = null;
         const excessCards = [];
@@ -3278,7 +2775,6 @@ function AutoCards(inHook, inText, inStop) {
             O.s(card);
             if (singletonCard === null) {
                 if ((card.title === templateCard.title) || (card.keys === templateCard.keys)) {
-                    // The first potentially valid singleton card candidate to be found
                     singletonCard = card;
                 }
             } else if (card.title === templateCard.title) {
@@ -3303,34 +2799,26 @@ function AutoCards(inHook, inText, inStop) {
         }
         if (singletonCard === null) {
             if (secondaryCard) {
-                // Fallback to a secondary card template
                 singletonCard = getSingletonCard(false, secondaryCard);
             }
-            // No singleton card candidate exists
             if (allowConstruction && (singletonCard === null)) {
-                // Construct a new singleton card from the given template
                 singletonCard = constructCard(templateCard);
             }
         } else {
             if (singletonCard.title !== templateCard.title) {
-                // Repair any damage to the singleton card's title
                 singletonCard.title = templateCard.title;
             } else if (singletonCard.keys !== templateCard.keys) {
-                // Repair any damage to the singleton card's keys
                 singletonCard.keys = templateCard.keys;
             }
             for (const card of excessCards) {
-                // Erase all excess singleton card candidates
                 eraseCard(card);
             }
             if (secondaryCard) {
-                // A secondary card match cannot be allowed to persist
                 eraseCard(getSingletonCard(false, secondaryCard));
             }
         }
         return singletonCard;
     }
-    // Erases the given story card
     function eraseCard(badCard) {
         if (badCard === null) {
             return false;
@@ -3344,9 +2832,6 @@ function AutoCards(inHook, inText, inStop) {
         }
         return false;
     }
-    // Constructs a new story card from a standardized story card template object
-    // {type: "", title: "", keys: "", entry: "", description: ""}
-    // Returns a reference to the newly constructed card
     function constructCard(templateCard, insertionIndex = 0) {
         addStoryCard("%@%");
         for (const [index, card] of storyCards.entries()) {
@@ -3359,7 +2844,6 @@ function AutoCards(inHook, inText, inStop) {
             card.entry = templateCard.entry;
             card.description = templateCard.description;
             if (index !== insertionIndex) {
-                // Remove from the current position and reinsert at the desired index
                 storyCards.splice(index, 1);
                 storyCards.splice(insertionIndex, 0, card);
             }
@@ -3476,7 +2960,6 @@ function AutoCards(inHook, inText, inStop) {
         }
         return;
     }
-    // Example usage: notify("Message text goes here");
     function notify(message) {
         if (typeof message === "string") {
             AC.message.pending.push(message);
@@ -3490,110 +2973,8 @@ function AutoCards(inHook, inText, inStop) {
         }
         return;
     }
-    function logEvent(message, uncounted) {
-        if (uncounted) {
-            log("Auto-Cards event: " + message);
-        } else {
-            log("Auto-Cards event #" + (function() {
-                try {
-                    AC.message.event++;
-                    return AC.message.event;
-                } catch {
-                    return 0;
-                }
-            })() + ": " + message.replace(/"/g, "'"));
-        }
-        return;
-    }
-    // Provide the story card object which you wish to log info within as the first argument
-    // All remaining arguments represent anything you wish to log
-    function logToCard(logCard, ...args) {
-        logEvent(args.map(arg => {
-            if ((typeof arg === "object") && (arg !== null)) {
-                return JSON.stringify(arg);
-            } else {
-                return String(arg);
-            }
-        }).join(", "), true);
-        if (logCard === null) {
-            return;
-        }
-        let desc = logCard.description.trim();
-        const turnDelimiter = Words.delimiter + "\nAction #" + getTurn() + ":\n";
-        let header = turnDelimiter;
-        if (!desc.startsWith(turnDelimiter)) {
-            desc = turnDelimiter + desc;
-        }
-        const scopesTable = [
-            ["input", "Input Modifier"],
-            ["context", "Context Modifier"],
-            ["output", "Output Modifier"],
-            [null, "Shared Library"],
-            [undefined, "External API"],
-            [Symbol("default"), "Unknown Scope"]
-        ];
-        const callingScope = (function() {
-            const pair = scopesTable.find(([condition]) => (condition === HOOK));
-            if (pair) {
-                return pair[1];
-            } else {
-                return scopesTable[scopesTable.length - 1][1];
-            }
-        })();
-        const hookDelimiterLeft = callingScope + " @ ";
-        if (desc.startsWith(turnDelimiter + hookDelimiterLeft)) {
-            const hookDelimiterOld = desc.match(new RegExp((
-                "^" + turnDelimiter + "(" + hookDelimiterLeft + "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z:\n)"
-            ).replaceAll("\n", "\\n")));
-            if (hookDelimiterOld) {
-                header += hookDelimiterOld[1];
-            } else {
-                const hookDelimiter = getNewHookDelimiter();
-                desc = desc.replace(hookDelimiterLeft, hookDelimiter);
-                header += hookDelimiter;
-            }
-        } else {
-            if ((new RegExp("^" + turnDelimiter.replaceAll("\n", "\\n") + "(" + (scopesTable
-                .map(pair => pair[1])
-                .filter(scope => (scope !== callingScope))
-                .join("|")
-            ) + ") @ ")).test(desc)) {
-                desc = desc.replace(turnDelimiter, turnDelimiter + "—————————\n");
-            }
-            const hookDelimiter = getNewHookDelimiter();
-            desc = desc.replace(turnDelimiter, turnDelimiter + hookDelimiter);
-            header += hookDelimiter;
-        }
-        const logDelimiter = (function() {
-            let logDelimiter = "Log #";
-            if (desc.startsWith(header + logDelimiter)) {
-                desc = desc.replace(header, header + "———\n");
-                const logCounter = desc.match(/Log #(\d+)/);
-                if (logCounter) {
-                    logDelimiter += (parseInt(logCounter[1], 10) + 1).toString();
-                }
-            } else {
-                logDelimiter += "0";
-            }
-            return logDelimiter + ": ";
-        })();
-        logCard.description = limitString(desc.replace(header, header + logDelimiter + args.map(arg => {
-            if ((typeof arg === "object") && (arg !== null)) {
-                return stringifyObject(arg);
-            } else {
-                return String(arg);
-            }
-        }).join(",\n") + "\n").trim(), 999999);
-        // The upper limit is actually closer to 3985621, but I think 1 million is reasonable enough as-is
-        function getNewHookDelimiter() {
-            return hookDelimiterLeft + (new Date().toISOString()) + ":\n";
-        }
-        return;
-    }
-    // Makes nested objects not look like cancer within interface cards
     function stringifyObject(obj) {
         const seen = new WeakSet();
-        // Each indentation is 4 spaces
         return JSON.stringify(obj, (_key, value) => {
             if ((typeof value === "object") && (value !== null)) {
                 if (seen.has(value)) {
@@ -3679,15 +3060,11 @@ function AutoCards(inHook, inText, inStop) {
             type: action?.type ?? "unknown"
         });
     }
-    // Forget ongoing card generation/compression after passing or postponing completion over many consecutive turns
-    // Also decrement AC.chronometer.postpone regardless of retries or erases
     function promoteAmnesia() {
-        // Decrement AC.chronometer.postpone in all cases
         if (0 < AC.chronometer.postpone) {
             AC.chronometer.postpone--;
         }
         if (!AC.chronometer.step) {
-            // Skip known retry/erase turns
             return;
         }
         if (AC.chronometer.amnesia++ < boundInteger(16, (2 * AC.config.addCardCooldown), 64)) {
@@ -3721,8 +3098,6 @@ function AutoCards(inHook, inText, inStop) {
     }
     function getTurn() {
         if (Number.isInteger(info?.actionCount)) {
-            // "But Leah, surely info.actionCount will never be negative?"
-            // You have no idea what nightmares I've seen...
             return Math.abs(info.actionCount);
         } else {
             return 0;
@@ -3757,44 +3132,31 @@ function AutoCards(inHook, inText, inStop) {
             return end();
         }
         title = (title
-            // Begone!
             .replace(/[–。？！´“”؟،«»¿¡„“…§，、\*_~><\(\)\[\]{}#"`:!—;\.\?,\s\\]/g, " ")
             .replace(/[‘’]/g, "'").replace(/\s+'/g, " ")
-            // Remove the words "I", "I'm", "I'd", "I'll", and "I've"
             .replace(/(?<=^|\s)(?:I|I'm|I'd|I'll|I've)(?=\s|$)/gi, "")
-            // Remove "'s" only if not followed by a letter
             .replace(/'s(?![a-zA-Z])/g, "")
-            // Replace "s'" with "s" only if preceded but not followed by a letter
             .replace(/(?<=[a-zA-Z])s'(?![a-zA-Z])/g, "s")
-            // Remove apostrophes not between letters (preserve contractions like "don't")
             .replace(/(?<![a-zA-Z])'(?![a-zA-Z])/g, "")
-            // Eliminate fake em dashes and terminal/leading dashes
             .replace(/\s-\s/g, " ")
-            // Condense consecutive whitespace
             .trim().replace(/\s+/g, " ")
-            // Remove a leading or trailing bullet
             .replace(/^-+\s*/, "").replace(/\s*-+$/, "")
         );
         if (short()) {
             return end();
         }
-        // Special-cased words
         const minorWordsJoin = Words.minor.join("|");
         const leadingMinorWordsKiller = new RegExp("^(?:" + minorWordsJoin + ")\\s", "i");
         const trailingMinorWordsKiller = new RegExp("\\s(?:" + minorWordsJoin + ")$", "i");
-        // Ensure the title is not bounded by any outer minor words
         title = enforceBoundaryCondition(title);
         if (short()) {
             return end();
         }
-        // Ensure interior minor words are lowercase and excise all interior honorifics/abbreviations
         const honorAbbrevsKiller = new RegExp("(?:^|\\s|-|\\/)(?:" + (
             [...Words.honorifics, ...Words.abbreviations]
         ).map(word => word.replace(".", "")).join("|") + ")(?=\\s|-|\\/|$)", "gi");
         title = (title
-            // Capitalize the first letter of each word
             .replace(/(?<=^|\s|-|\/)(?:\p{L})/gu, word => word.toUpperCase())
-            // Lowercase minor words properly
             .replace(/(?<=^|\s|-|\/)(?:\p{L}+)(?=\s|-|\/|$)/gu, word => {
                 const lowerWord = word.toLowerCase();
                 if (Words.minor.includes(lowerWord)) {
@@ -3803,7 +3165,6 @@ function AutoCards(inHook, inText, inStop) {
                     return word;
                 }
             })
-            // Remove interior honorifics/abbreviations
             .replace(honorAbbrevsKiller, "")
             .trim()
         );
@@ -3823,7 +3184,6 @@ function AutoCards(inHook, inText, inStop) {
         if (isUsedOrBanned(title) || isNamed(title)) {
             return end();
         }
-        // Procedurally generated story card trigger keywords exclude certain words and patterns which are otherwise permitted in titles
         let key = title;
         const peerage = new Set(Words.peerage);
         if (titleWords.some(word => ((word === "the") || peerage.has(word.toLowerCase())))) {
@@ -3933,12 +3293,9 @@ function AutoCards(inHook, inText, inStop) {
     }
     function isBanned(lowerTitle, getUsedIsExternal) {
         if (bans.size === 0) {
-            // In order to save space, implicit bans aren't listed within the UI
             const dataVariants = getDataVariants();
             const bansToAdd = [...lowArr([
                 ...Internal.getBannedTitles(),
-                dataVariants.debug.title,
-                dataVariants.debug.keys,
                 dataVariants.critical.title,
                 dataVariants.critical.keys,
                 ...Object.values(Words.reserved)
@@ -4092,7 +3449,7 @@ function AutoCards(inHook, inText, inStop) {
             critical: O.f({
                 title: "Critical Data",
                 keys: "Never modify or delete this story card",
-            }),
+            })
         });
     }
     // Prepare to export the codomain
@@ -4114,17 +3471,14 @@ function AutoCards(inHook, inText, inStop) {
             return [null, null]; }
         }
     })();
-    // Repackage AC to propagate its state forward in time
     const memoryOverflow = (38000 < (JSON.stringify(state).length + JSON.stringify(AC).length));
     if (memoryOverflow) {
-        // Memory overflow is imminent
         const dataVariants = getDataVariants();
         if (lastCall) {
             banTitle(dataVariants.critical.title);
         }
         setData(dataVariants.critical);
         if (state.AutoCards) {
-            // Decouple state for safety
             delete state.AutoCards;
         }
     } else {
@@ -4132,7 +3486,6 @@ function AutoCards(inHook, inText, inStop) {
             const dataVariants = getDataVariants();
             unbanTitle(dataVariants.critical.title);
         }
-        // Save a backup image to state
         state.AutoCards = AC;
     }
     function setData(primaryVariant, secondaryVariant) {
