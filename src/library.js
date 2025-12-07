@@ -883,8 +883,6 @@ function AutoCards(inHook, inText, inStop) {
             // AutoCards was called within the input modifier
             if ((AC.config.deleteAllAutoCards === false) && /CONFIRM\s*DELETE/i.test(TEXT)) {
                 CODOMAIN.initialize("CONFIRM DELETE -> Success!");
-            } else if (/\/\s*A\s*C/i.test(text)) {
-                CODOMAIN.initialize(doPlayerCommands(text));
             } else if (TEXT.startsWith(" ") && readPastAction(0).text.endsWith("\n")) {
                 // Just a simple little formatting bugfix for regular AID story actions
                 CODOMAIN.initialize(getPrecedingNewlines() + TEXT.replace(/^\s+/, ""));
@@ -1024,7 +1022,7 @@ function AutoCards(inHook, inText, inStop) {
                     switch(AC.config.addCardCooldown) {
                     case 9999: {
                         notify(
-                            "You have disabled automatic card generation. To re-enable, simply set your cooldown config to any number lower than 9999. Or use the \"/ac\" in-game command to manually direct the card generation process"
+                            "You have disabled automatic card generation. To re-enable, simply set your cooldown config to any number lower than 9999."
                         );
                         break; }
                     case 1: {
@@ -2165,11 +2163,7 @@ function AutoCards(inHook, inText, inStop) {
         // Auto-Cards is currently disabled
         switch(HOOK) {
         case "input": {
-            if (/\/\s*A\s*C/i.test(text)) {
-                CODOMAIN.initialize(doPlayerCommands(text));
-            } else {
-                CODOMAIN.initialize(TEXT);
-            }
+            CODOMAIN.initialize(TEXT);
             break; }
         case "context": {
             // AutoCards was called within the context modifier
@@ -2401,7 +2395,7 @@ function AutoCards(inHook, inText, inStop) {
                 Words.delimiter,
                 "",
                 "💡 What is Auto-Cards?",
-                "Auto-Cards is a plug-and-play script for AI Dungeon that watches your story and automatically writes plot-relevant story cards during normal gameplay. A forgetful AI breaks my immersion, therefore my primary goal was to address the \"object permanence problem\" by extending story cards and memories with deeper automation. Auto-Cards builds a living reference of your adventure's world as you go. For your own convenience, all of this stuff is handled in the background. Though you're certainly welcome to customize various settings or use in-game commands for more precise control",
+                "Auto-Cards is a plug-and-play script for AI Dungeon that watches your story and automatically writes plot-relevant story cards during normal gameplay. A forgetful AI breaks my immersion, therefore my primary goal was to address the \"object permanence problem\" by extending story cards and memories with deeper automation. Auto-Cards builds a living reference of your adventure's world as you go. For your own convenience, all of this stuff is handled in the background. Though you're certainly welcome to customize various settings for more precise control",
                 "",
                 Words.delimiter,
                 "",
@@ -2409,7 +2403,6 @@ function AutoCards(inHook, inText, inStop) {
                 "- Detects named entities from your story and periodically writes new cards",
                 "- Smart long-term memory updates and summaries for important cards",
                 "- Fully customizable AI card generation and memory summarization prompts",
-                "- Optional in-game commands to manually direct the card generation process",
                 "- Free and open source for anyone to use within their own projects",
                 "- Compatible with other scripts and includes an external API",
                 "- Optional in-game scripting interface (LSIv2)",
@@ -2486,43 +2479,6 @@ function AutoCards(inHook, inText, inStop) {
                 "",
                 "> Titles banned from automatic new card generation:",
                 "North, East, South, West, and so on...",
-                "",
-                Words.delimiter,
-                "",
-                "🔑 In-Game Commands (/ac)",
-                "Use these commands to manually interact with Auto-Cards, simply type them into a Do/Say/Story input action",
-                "",
-                "/ac",
-                "Sets your actual cooldown to 0 and immediately attempts to generate a new card for the most relevant unused title from your story (if one exists)",
-                "",
-                "/ac Your Title Goes Here",
-                "Will immediately begin generating a new story card with the given title",
-                "Example use: \"/ac Leah\"",
-                "",
-                "/ac Your Title Goes Here / Your extra prompt details go here",
-                "Similar to the previous case, but with additional context to include with the card generation prompt",
-                "Example use: \"/ac Leah / Focus on Leah's works of artifice and ingenuity\"",
-                "",
-                "/ac Your Title Goes Here / Your extra prompt details go here / Your starter entry goes here",
-                "Again, similar to the previous case, but with an initial card entry for the generator to build upon",
-                "Example use: \"/ac Leah / Focus on Leah's works of artifice and ingenuity / You are a woman named Leah.\"",
-                "",
-                "/ac redo Your Title Goes Here",
-                "Rewrites your chosen story card, using the old card entry, memory bank, and story context for inspiration. Useful for recreating cards after important character development has occurred",
-                "Example use: \"/ac redo Leah\"",
-                "",
-                "/ac redo Your Title Goes Here / New info goes here",
-                "Similar to the previous case, but with additional info provided to guide the rewrite according to your additional specifications",
-                "Example use: \"/ac redo Leah / Leah recently achieved immortality\"",
-                "",
-                "/ac redo all",
-                "Recreates every single auto-card in your adventure. I must warn you though: This is very risky",
-                "",
-                "Extra Info:",
-                "- Invalid titles will fail. It's a technical limitation, sorry 🤷‍♀️",
-                "- Titles must be unique, unless you're attempting to use \"/ac redo\" for an existing card",
-                "- You may submit multiple commands using a single input to queue up a chained sequence of requests",
-                "- Capitalization doesn't matter, titles will be reformatted regardless",
                 "",
                 Words.delimiter,
                 "",
@@ -3707,142 +3663,6 @@ function AutoCards(inHook, inText, inStop) {
             .replace(/\s+/g, " ")
             .toLowerCase()
         ) === titleKey)), false, titleKey];
-    }
-    function doPlayerCommands(input) {
-        let result = "";
-        for (const command of (
-            (function() {
-                if (/^\n> [\s\S]*? says? "[\s\S]*?"\n$/.test(input)) {
-                    return input.replace(/\s*"\n$/, "");
-                } else {
-                    return input.trimEnd();
-                }
-            })().split(/(?=\/\s*A\s*C)/i)
-        )) {
-            const prefixPattern = /^\/\s*A\s*C/i;
-            if (!prefixPattern.test(command)) {
-                continue;
-            }
-            const [requestTitle, requestDetails, requestEntry] = (command
-                .replace(/(?:{\s*)|(?:\s*})/g, "")
-                .replace(prefixPattern, "")
-                .replace(/(?:^\s*\/*\s*)|(?:\s*\/*\s*$)/g, "")
-                .split("/")
-                .map(requestArg => requestArg.trim())
-                .filter(requestArg => (requestArg !== ""))
-            );
-            if (!requestTitle) {
-                // Request with no args
-                AC.generation.cooldown = 0;
-                result += "/AC -> Success!\n\n";
-                logEvent("/AC");
-            } else {
-                const request = {title: requestTitle.replace(/\s*[\.\?!:]+$/, "")};
-                const redo = (function() {
-                    const redoPattern = /^(?:redo|retry|rewrite|remake)[\s\.\?!:,;"'—\)\]]+\s*/i;
-                    if (redoPattern.test(request.title)) {
-                        request.title = request.title.replace(redoPattern, "");
-                        if (/^(?:all|every)(?:\s|\.|\?|!|:|,|;|"|'|—|\)|\]|$)/i.test(request.title)) {
-                            return [];
-                        } else {
-                            return true;
-                        }
-                    } else {
-                        return false;
-                    }
-                })();
-                if (Array.isArray(redo)) {
-                    // Redo all auto cards
-                    Internal.getUsedTitles(true);
-                    const titleMatchPattern = /^{title: ([\s\S]*?)}/;
-                    redo.push(...Internal.getCard(card => (
-                        titleMatchPattern.test(card.entry)
-                        && /{updates: (?:true|false), limit: \d+}/.test(card.description)
-                    ), true));
-                    let count = 0;
-                    for (const card of redo) {
-                        const titleMatch = card.entry.match(titleMatchPattern);  
-                        if (titleMatch && Internal.redoCard(O.f({title: titleMatch[1]}), true, "")) {
-                            count++;
-                        }
-                    }
-                    const parsed = "/AC redo all";
-                    result += parsed + " -> ";
-                    if (count === 0) {
-                        result += "There were no valid auto-cards to redo";
-                    } else {
-                        result += "Success!";
-                        if (1 < count) {
-                            result += " Proceed to redo " + count + " cards";
-                        }
-                    }
-                    logEvent(parsed);
-                } else if (!requestDetails) {
-                    // Request with only title
-                    submitRequest("");
-                } else if (!requestEntry || redo) {
-                    // Request with title and details
-                    request.entryPromptDetails = requestDetails;
-                    submitRequest(" / {" + requestDetails + "}");
-                } else {
-                    // Request with title, details, and entry
-                    request.entryPromptDetails = requestDetails;
-                    request.entryStart = requestEntry;
-                    submitRequest(" / {" + requestDetails + "} / {" + requestEntry + "}");
-                }
-                result += "\n\n";
-                function submitRequest(extra) {
-                    O.f(request);
-                    const [type, success] = (function() {
-                        if (redo) {
-                            return [" redo", Internal.redoCard(request, true, "")];
-                        } else {
-                            Internal.getUsedTitles(true);
-                            return ["", Internal.generateCard(request)];
-                        }
-                    })();
-                    const left = "/AC" + type + " {";
-                    const right = "}" + extra;
-                    if (success) {
-                        const parsed = left + AC.generation.pending[AC.generation.pending.length - 1].title + right;
-                        result += parsed + " -> Success!";
-                        logEvent(parsed);
-                    } else {
-                        const parsed = left + request.title + right;
-                        result += parsed + " -> \"" + request.title + "\" is invalid or unavailable";
-                        logEvent(parsed);
-                    }
-                    return;
-                }
-            }
-            if (isPendingGeneration() || isAwaitingGeneration() || isPendingCompression()) {
-                if (AC.config.doAC) {
-                    AC.signal.outputReplacement = "";
-                } else {
-                    AC.signal.forceToggle = true;
-                    AC.signal.outputReplacement = ">>> please select \"continue\" (0%) <<<";
-                }
-            } else if (AC.generation.cooldown === 0) {
-                if (0 < AC.database.titles.candidates.length) {
-                    if (AC.config.doAC) {
-                        AC.signal.outputReplacement = "";
-                    } else {
-                        AC.signal.forceToggle = true;
-                        AC.signal.outputReplacement = ">>> please select \"continue\" (0%) <<<";
-                    }
-                } else if (AC.config.doAC) {
-                    result = result.trimEnd() + "\n";
-                    AC.signal.outputReplacement = "\n";
-                } else {
-                    AC.signal.forceToggle = true;
-                    AC.signal.outputReplacement = ">>> Auto-Cards has been enabled! <<<";
-                }
-            } else {
-                result = result.trimEnd() + "\n";
-                AC.signal.outputReplacement = "\n";
-            }
-        }
-        return getPrecedingNewlines() + result;
     }
     function advanceChronometer() {
         const currentTurn = getTurn();
