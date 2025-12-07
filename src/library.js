@@ -9,13 +9,155 @@ function AutoCards(inHook, inText, inStop) {
     The default values for your scenario are specified below:
     */
 
-    // Is Auto-Cards already enabled when the adventure begins?
-    const DEFAULT_DO_AC = false
-    // (true or false)
+    // Is Auto-Cards enabled? (true or false)
+    const ENABLED = true
 
-    // Pin the "Configure Auto-Cards" story card at the top of the player's story cards list?
-    const DEFAULT_PIN_CONFIGURE_CARD = true
-    // (true or false)
+    // === NARRATIVE GUIDANCE CONFIGURATION ===
+    const NARRATIVE_GUIDANCE = {
+        ENABLED: true,
+        initialHeatValue: 0,
+        initialTemperatureValue: 1,
+        temperatureIncreaseChance: 15,
+        heatIncreaseValue: 1,
+        temperatureIncreaseValue: 1,
+        playerIncreaseHeatImpact: 2,
+        playerDecreaseHeatImpact: 2,
+        playerIncreaseTemperatureImpact: 1,
+        playerDecreaseTemperatureImpact: 1,
+        threshholdPlayerIncreaseTemperature: 2,
+        threshholdPlayerDecreaseTemperature: 2,
+        modelIncreaseHeatImpact: 1,
+        modelDecreaseHeatImpact: 2,
+        modelIncreaseTemperatureImpact: 1,
+        modelDecreaseTemperatureImpact: 1,
+        threshholdModelIncreaseTemperature: 3,
+        threshholdModelDecreaseTemperature: 3,
+        maximumTemperature: 12,
+        trueMaximumTemperature: 15,
+        minimumTemperature: 1,
+        trueMinimumTemperature: 1,
+        smartOverheatTimer: false, // Set to true to enable experimental smart overheat timer
+        smartOverheatThreshold: 5,
+        overheatTimer: 4,
+        overheatReductionForHeat: 5,
+        overheatReductionForTemperature: 1,
+        cooldownTimer: 5,
+        cooldownRate: 2,
+        randomExplosionChance: 3,
+        randomExplosionHeatIncreaseValue: 5,
+        randomExplosionTemperatureIncreaseValue: 2,
+        originalAuthorsNote: "Put your original authors note here!",
+        conflictWords: ["attack", "stab", "destroy", "break", "steal", "ruin", "burn", "smash", "sabotage", "disrupt", "vandalize", "overthrow", "assassinate", "plunder", "rob", "ransack", "raid", "hijack", "detonate", "explode", "ignite", "collapse", "demolish", "shatter", "strike", "slap", "obliterate", "annihilate", "corrupt", "infect", "poison", "curse", "hex", "summon", "conjure", "mutate", "provoke", "riot", "revolt", "mutiny", "rebel", "resist", "intimidate", "blackmail", "manipulate", "brainwash", "lie", "cheat", "swindle", "disarm", "fire", "hack", "overload", "flood", "drown", "rot", "dissolve", "slaughter", "terminate", "execute", "drama", "conflict", "evil", "kill", "slay", "defeat", "fight", "doom", "slice", "pain", "dying", "die", "perish", "blood", "scream", "yell", "argue", "threaten", "wound", "injure", "betray"],
+        calmingWords: ["calm", "rest", "relax", "meditate", "sleep", "comfort", "hug", "smile", "forgive", "mend", "repair", "plant", "sing", "dance", "celebrate", "collaborate", "share", "give", "donate", "protect", "shelter", "trust", "hope", "dream", "revive", "eat", "drink", "balance", "cheer", "laugh", "play", "build", "bake", "craft", "cook", "empathize", "apologize", "befriend", "admire", "sympathize", "thank", "appreciate", "cherish", "love", "pet", "respect", "restore", "guide", "teach", "learn", "daydream", "wander", "explore", "discover", "reflect", "happy", "joy", "kind", "heal", "help", "assist", "console", "cuddle", "snuggle", "read", "write", "paint", "draw", "create", "agree", "accept", "praise"],
+        temperatureMap: [
+            {
+                threshold: 1,
+                prompt: "Story Phase: Introduction. Introduce characters and locations. There should be no conflict or tension in the story. "
+            },
+            {
+                threshold: 2,
+                prompt: "Story Phase: Introduction. Introduce characters, locations, and plot hooks. There should be only a little conflict and tension in the story unless the player is seeking it out. "
+            },
+            {
+                threshold: 4,
+                prompt: "Story Phase: Introduction. Introduce characters, locations, and plot hooks. There should be only minor conflicts. Introduce the possibility of a moderate conflict that could appear far in the future. "
+            },
+            {
+                threshold: 5,
+                prompt: "Story Phase: Rising Action. Introduce more minor conflicts. Give minor hints as to what a greater conflict in the far future could be. "
+            },
+            {
+                threshold: 7,
+                prompt: "Story Phase: Rising Action. Introduce the occasional moderate conflict. Give minor hints as to what a greater conflict in the far future could be. Introduce conntections to discovered plot hooks. "
+            },
+            {
+                threshold: 9,
+                prompt: "Story Phase: Rising Action. Introduce the occasional moderate conflict. Give moderate hints as to what a greater conflict in the far future could be. Introduce conntections to discovered plot hooks. Begin moving the story towards the greater conflict ahead. "
+            },
+            {
+                threshold: 10,
+                prompt: "Story Phase: Climax. Introduce the climax of the story. All previous hints about this greater conflict should intersect with this climactic moment. Plot hooks should be connected to this climax. Emphisise major conflict. "
+            },
+            {
+                threshold: 12,
+                prompt: "Story Phase: Climax. Advance the climax of the story, introduce a challenge to go with it. Emphisise major conflict. Push the characters near their limits while staying fair. "
+            },
+            {
+                threshold: 14,
+                prompt: "Story Phase: Climax. Advance the climax of the story. Emphisise major conflict. Push the characters to their limits. Punish bad decisions while not being unfair. "
+            },
+            {
+                threshold: 15,
+                prompt: "Story Phase: Climax. Advance the climax of the story. Emphisise major conflict. Push the characters to their limits. Punish bad decisions that the characters make. Be unfair at times, but make unfairness in the story make sense with the current plot. "
+            },
+            {
+                threshold: 18,
+                prompt: "!WARNING! IT IS NOT RECOMMENDED FOR YOUR STORY TO GET TO THIS STATE. ONLY ENABLE YOUR TRUE MAXIMUM TEMPERATURE TO THIS VALUE IF YOU REALLY REALLY WANT IT TO BE PUNISHING. Story Phase: Ultimate Climax. Emphisise insanely difficult conflict. Push the characters to their absolute limits. Heavily punish bad decisions that the characters make. Make the challenges increadibly unfair. "
+            },
+            {
+                threshold: 19,
+                prompt: "!WARNING! IT IS NOT RECOMMENDED FOR YOUR STORY TO GET TO THIS STATE. ONLY ENABLE YOUR TRUE MAXIMUM TEMPERATURE TO THIS VALUE IF YOU REALLY REALLY WANT IT TO BE PUNISHING. Story Phase: Ultimate Climax. Emphisise impossibly difficult conflict. Push the characters to their absolute limits. Very heavily punish bad decisions that the characters make. Make the challenges increadibly unfair. "
+            },
+            {
+                threshold: 20,
+                prompt: "!WARNING! IT IS NOT RECOMMENDED FOR YOUR STORY TO GET TO THIS STATE. ONLY ENABLE YOUR TRUE MAXIMUM TEMPERATURE TO THIS VALUE IF YOU REALLY REALLY WANT IT TO BE PUNISHING. Story Phase: Omega Insane Ultimate Climax of Doom. Emphisise insanely difficult conflict. Push the characters to their absolute limits. Very heavily punish bad decisions that the characters make. Make the challenges increadibly unfair. There is no success. "
+            },
+            {
+                threshold: Infinity,
+                prompt: "!WARNING! IT IS NOT RECOMMENDED FOR YOUR STORY TO GET TO THIS STATE. ONLY ENABLE YOUR TRUE MAXIMUM TEMPERATURE TO THIS VALUE IF YOU REALLY REALLY WANT IT TO BE PUNISHING. Story Phase: Apocalypse. Emphisise impossible conflict. There is no success. Make challenges blatently unfair. Punish every decision. Actively attempt to push the characters away from their goal in any way possible. "
+            }
+        ],
+        cooldownTemperatureMap: [
+            {
+                threshold: 3,
+                prompt: "Story Phase: Downtime. There should be only minor tension, with most of the current story being filled with peace and quiet. "
+            },
+            {
+                threshold: 5,
+                prompt: "Story Phase: Downtime. There should be only minor tension, with most of the current story being filled with peaceful encounters, unless characters actively try to cause chaos. "
+            },
+            {
+                threshold: 7,
+                prompt: "Story Phase: Downtime. There should be only minor tension and conflict, with most of the current story being filled with neutral encounters, unless characters actively try to cause chaos. "
+            },
+            {
+                threshold: 8,
+                prompt: "Story Phase: Downtime. There should be only minor tension and conflict, with most of the current story containing neutral encounters and minor surprises. This section of story should have a satisfying conclusion for its characters. "
+            },
+            {
+                threshold: 9,
+                prompt: "Story Phase: Falling Action. The conflicts should be quickly ending, and this section of story should have a satisfying conclusion for its characters. There is still some minor tension and conflict. "
+            },
+            {
+                threshold: 11,
+                prompt: "Story Phase: Falling Action. The conflicts should be slowly ending, and this section of story should have a satisfying conclusion for its characters. There is still moderate tension and conflict, but not as much as before. "
+            },
+            {
+                threshold: 12,
+                prompt: "Story Phase: Falling Action. The conflicts should be slowly ending, and this section of story should have a satisfying conclusion for its characters. There is still moderatly high tension and conflict, but not as much as before. "
+            },
+            {
+                threshold: 14,
+                prompt: "Story Phase: Falling Action. The conflicts should be beginning to come to a close. There is still moderatly high tension and conflict, but not as much as before. "
+            },
+            {
+                threshold: 15,
+                prompt: "Story Phase: Falling Action. The conflicts should be beginning to come to a close. Tension and conflict is still high. "
+            },
+            {
+                threshold: 18,
+                prompt: "Story Phase: Extreme Falling Action. The conflicts should start to show signs of slightly ending. Tension and conflict is still very high. "
+            },
+            {
+                threshold: 19,
+                prompt: "Story Phase: Extreme Falling Action. Tension and conflict is still very high. "
+            },
+            {
+                threshold: Infinity,
+                prompt: "Story Phase: Omega Extreme Falling Action. Tension and conflict is still extremely high. "
+            }
+        ]
+    };
 
     // Minimum number of turns in between automatic card generation events?
     const DEFAULT_CARD_CREATION_COOLDOWN = 22
@@ -40,10 +182,6 @@ function AutoCards(inHook, inText, inStop) {
     // Approximately how much shorter should recently compressed memories be? (ratio = 10 * old / new)
     const DEFAULT_MEMORY_COMPRESSION_RATIO = 25
     // (20 to 1250)
-
-    // Is Live Script Interface v2 enabled?
-    const DEFAULT_DO_LSI_V2 = false
-    // (true or false)
 
     // Should the "Debug Data" story card be visible?
     const DEFAULT_SHOW_DEBUG_DATA = false
@@ -127,80 +265,25 @@ function AutoCards(inHook, inText, inStop) {
     let data = null;
     // Validate globalThis.text
     text = ((typeof text === "string") && text) || "\n";
-    // Container for the persistent state of AutoCards
     const AC = (function() {
-        if (state.LSIv2) {
-            // The Auto-Cards external API is also available from within the inner scope of LSIv2
-            // Call with AutoCards().API.nameOfFunction(yourArguments);
-            return state.LSIv2;
-        } else if (state.AutoCards) {
-            // state.AutoCards is prioritized for performance
-            const ac = state.AutoCards;
-            delete state.AutoCards;
-            return ac;
+        if (state.AutoCards && typeof state.AutoCards === 'object' && state.AutoCards.config) {
+            return state.AutoCards;
         }
+
         const dataVariants = getDataVariants();
         data = getSingletonCard(false, O.f({...dataVariants.critical}), O.f({...dataVariants.debug}));
-        // Deserialize the state of Auto-Cards from the data card
-        const ac = (function() {
+
+        if (data && data.description) {
             try {
-                return JSON.parse(data?.description);
-            } catch {
-                return null;
-            }
-        })();
-        // If the deserialized state fails to match the following structure, fallback to defaults
-        if (validate(ac, O.f({
-            config: [
-                "doAC", "deleteAllAutoCards", "pinConfigureCard", "addCardCooldown", "bulletedListMode", "defaultEntryLimit", "defaultCardsDoMemoryUpdates", "defaultMemoryLimit", "memoryCompressionRatio", "ignoreAllCapsTitles", "readFromInputs", "minimumLookBackDistance", "showDebugData", "generationPrompt", "compressionPrompt", "defaultCardType"
-            ],
-            signal: [
-                "emergencyHalt", "forceToggle", "overrideBans", "swapControlCards", "recheckRetryOrErase", "maxChars", "outputReplacement", "upstreamError"
-            ],
-            generation: [
-                "cooldown", "completed", "permitted", "workpiece", "pending"
-            ],
-            compression: [
-                "completed", "titleKey", "vanityTitle", "responseEstimate", "lastConstructIndex", "oldMemoryBank", "newMemoryBank"
-            ],
-            message: [
-                "previous", "suppress", "pending", "event"
-            ],
-            chronometer: [
-                "turn", "step", "amnesia", "postpone"
-            ],
-            database: {
-                titles: [
-                    "used", "banned", "candidates", "lastActionParsed", "lastTextHash", "pendingBans", "pendingUnbans"
-                ],
-                memories: [
-                    "associations", "duplicates"
-                ],
-                inventory: [
-                    "items"
-                ]
-            }
-        }))) {
-            // The deserialization was a success
-            return ac;
-        }
-        function validate(obj, finalKeys) {
-            if ((typeof obj !== "object") || (obj === null)) {
-                return false;
-            } else {
-                return Object.entries(finalKeys).every(([key, value]) => {
-                    if (!(key in obj)) {
-                        return false;
-                    } else if (Array.isArray(value)) {
-                        return value.every(finalKey => {
-                            return (finalKey in obj[key]);
-                        });
-                    } else {
-                        return validate(obj[key], value);
-                    }
-                });
+                const parsed = JSON.parse(data.description);
+                if (parsed && typeof parsed === 'object' && parsed.config) {
+                    return parsed;
+                }
+            } catch (e) {
+                // JSON parsing failed, fall through to reinitialize
             }
         }
+
         // AC is malformed, reinitialize with default values
         return {
             // In-game configurable parameters
@@ -261,15 +344,7 @@ function AutoCards(inHook, inText, inStop) {
                 // API: Allow Auto-Cards to post messages?
                 suppress: false,
                 // Pending Auto-Cards message(s)
-                pending: (function() {
-                    if (DEFAULT_DO_AC !== false) {
-                        const startupMessage = "Enabled! You may now edit the \"Configure Auto-Cards\" story card";
-                        logEvent(startupMessage);
-                        return [startupMessage];
-                    } else {
-                        return [];
-                    }
-                })(),
+                pending: [],
                 // Counter to track all Auto-Cards message events
                 event: 0
             },
@@ -873,7 +948,7 @@ function AutoCards(inHook, inText, inStop) {
             break; }
         }
         CODOMAIN.initialize(TEXT);
-    } else if (AC.config.doAC) {
+    } else if (ENABLED) {
         // Auto-Cards is currently enabled
         // "text" represents the original text which was present before any scripts were executed
         // "TEXT" represents the script-modified version of "text" which AutoCards was called with
@@ -881,6 +956,144 @@ function AutoCards(inHook, inText, inStop) {
         switch(HOOK) {
         case "input": {
             // AutoCards was called within the input modifier
+            if (NARRATIVE_GUIDANCE.ENABLED) {
+                if (state.heat == undefined){
+                    state.heat = NARRATIVE_GUIDANCE.initialHeatValue
+                    state.cooldownMode = false
+                    state.overheatMode = false
+                }
+                if (state.storyTemperature == undefined){
+                    state.storyTemperature = NARRATIVE_GUIDANCE.initialTemperatureValue
+                }
+                const lowerText = TEXT.toLowerCase()
+                const words = lowerText.split(/\s+/)
+                let conflictCount = 0
+                let calmingCount = 0
+
+                words.forEach(word => {
+                    const fixedWord = word.replace(/^[^\w]+|[^\w]+$/g, '')
+                    if (NARRATIVE_GUIDANCE.conflictWords.includes(fixedWord)) {
+                    conflictCount++
+                    }
+                    if (NARRATIVE_GUIDANCE.calmingWords.includes(fixedWord)) {
+                    calmingCount++
+                    }
+                })
+
+                if (state.cooldownMode == false){
+                    if (conflictCount > 0) {
+                        state.heat += conflictCount * NARRATIVE_GUIDANCE.playerIncreaseHeatImpact
+                        if (conflictCount >= NARRATIVE_GUIDANCE.threshholdPlayerIncreaseTemperature){
+                            state.storyTemperature += conflictCount * NARRATIVE_GUIDANCE.playerIncreaseTemperatureImpact
+                            log(`Detected ${conflictCount} conflict words (Player). Increasing heat & temperature.`)
+                        }
+                        else{
+                            log(`Detected ${conflictCount} conflict words (Player). Increasing heat.`)
+                        }
+                    }
+
+                    if (calmingCount > 0) {
+                        state.heat -= calmingCount * NARRATIVE_GUIDANCE.playerDecreaseHeatImpact
+                        if (calmingCount >= NARRATIVE_GUIDANCE.threshholdPlayerDecreaseTemperature){
+                            state.storyTemperature -= calmingCount * NARRATIVE_GUIDANCE.playerDecreaseTemperatureImpact
+                            log(`Detected ${calmingCount} calming words (Player). Decreasing heat & temperature.`)
+                        }
+                        else{
+                            log(`Detected ${calmingCount} calming words (Player). Decreasing heat.`)
+                        }
+                    }
+                }
+
+                state.chance = randomint(1, 100)
+                if (state.chance <= NARRATIVE_GUIDANCE.randomExplosionChance){
+                    state.heat = state.heat + NARRATIVE_GUIDANCE.randomExplosionHeatIncreaseValue
+                    state.storyTemperature = state.storyTemperature + NARRATIVE_GUIDANCE.randomExplosionTemperatureIncreaseValue
+                    log("!WARNING! Explosion Occured! (+" + NARRATIVE_GUIDANCE.randomExplosionHeatIncreaseValue + " heat) (+" + NARRATIVE_GUIDANCE.randomExplosionTemperatureIncreaseValue + " temperature)")
+                }
+                if(state.cooldownMode == false && state.overheatMode == false){
+                    state.heat = state.heat + NARRATIVE_GUIDANCE.heatIncreaseValue
+                    log("Heat: " + state.heat)
+                }
+                state.chance = randomint(1, NARRATIVE_GUIDANCE.temperatureIncreaseChance)
+                if (state.chance <= state.heat){
+                    state.heat = 0
+                    state.storyTemperature = state.storyTemperature + NARRATIVE_GUIDANCE.temperatureIncreaseValue
+                    log("Temperature Increased. Temperature is now " + state.storyTemperature)
+                }
+                if (state.storyTemperature >= NARRATIVE_GUIDANCE.maximumTemperature){
+                    if (state.cooldownMode == false && state.overheatMode == false){
+                    state.overheatMode = true
+                    state.overheatTurnsLeft = NARRATIVE_GUIDANCE.overheatTimer
+                    log("Overheat Mode Activated")
+                    }
+                }
+                if (state.cooldownMode == true){
+                    state.cooldownTurnsLeft --
+                    log("Cooldown Timer: " + state.cooldownTurnsLeft)
+                    state.storyTemperature = state.storyTemperature - NARRATIVE_GUIDANCE.cooldownRate
+                    if(state.cooldownTurnsLeft <= 0){
+                    state.cooldownMode = false
+                    log("Cooldown Mode Disabled")
+                    }
+                }
+                else{
+                    if(state.overheatMode == true){
+                        if (NARRATIVE_GUIDANCE.smartOverheatTimer) {
+                            if (calmingCount >= NARRATIVE_GUIDANCE.smartOverheatThreshold) {
+                                state.storyTemperature = state.storyTemperature - NARRATIVE_GUIDANCE.overheatReductionForTemperature
+                                state.heat = state.heat - NARRATIVE_GUIDANCE.overheatReductionForHeat
+                                state.overheatMode = false
+                                state.cooldownMode = true
+                                state.cooldownTurnsLeft = NARRATIVE_GUIDANCE.cooldownTimer
+                                log("Cooldown Mode Activated")
+                            }
+                        } else {
+                            state.overheatTurnsLeft --
+                            log("Overheat Timer: " + state.overheatTurnsLeft)
+                            if (state.overheatTurnsLeft <= 0){
+                                state.storyTemperature = state.storyTemperature - NARRATIVE_GUIDANCE.overheatReductionForTemperature
+                                state.heat = state.heat - NARRATIVE_GUIDANCE.overheatReductionForHeat
+                                state.overheatMode = false
+                                state.cooldownMode = true
+                                state.cooldownTurnsLeft = NARRATIVE_GUIDANCE.cooldownTimer
+                                log("Cooldown Mode Activated")
+                            }
+                        }
+                    }
+                }
+
+                if (state.storyTemperature > NARRATIVE_GUIDANCE.trueMaximumTemperature){
+                    state.storyTemperature = NARRATIVE_GUIDANCE.trueMaximumTemperature
+                    log("Temperature over maximum, recalibrating...")
+                }
+                if (state.storyTemperature <= 0){
+                    state.storyTemperature = 1
+                    log("Temperature under minimum, recalibrating...")
+                }
+
+                if (state.cooldownMode == false){
+                    for (const temp of NARRATIVE_GUIDANCE.temperatureMap) {
+                        if (state.storyTemperature <= temp.threshold) {
+                            state.memory.authorsNote = temp.prompt + NARRATIVE_GUIDANCE.originalAuthorsNote;
+                            break;
+                        }
+                    }
+                } else {
+                    if (state.storyTemperature <= 1) {
+                        state.cooldownMode = false
+                    }
+                    else {
+                        for (const temp of NARRATIVE_GUIDANCE.cooldownTemperatureMap) {
+                            if (state.storyTemperature <= temp.threshold) {
+                                state.memory.authorsNote = temp.prompt + NARRATIVE_GUIDANCE.originalAuthorsNote;
+                                break;
+                            }
+                        }
+                    }
+                }
+                state.authorsNoteStorage = state.memory.authorsNote;
+            }
+
             if ((AC.config.deleteAllAutoCards === false) && /CONFIRM\s*DELETE/i.test(TEXT)) {
                 CODOMAIN.initialize("CONFIRM DELETE -> Success!");
             } else if (TEXT.startsWith(" ") && readPastAction(0).text.endsWith("\n")) {
@@ -893,229 +1106,6 @@ function AutoCards(inHook, inText, inStop) {
         case "context": {
             // AutoCards was called within the context modifier
             advanceChronometer();
-            // Get or construct the "Configure Auto-Cards" story card
-            const configureCardTemplate = getConfigureCardTemplate();
-            const configureCard = getSingletonCard(true, configureCardTemplate);
-            banTitle(configureCardTemplate.title);
-            pinAndSortCards(configureCard);
-            const bansOverwritten = (0 < AC.signal.overrideBans);
-            if ((configureCard.description !== configureCardTemplate.description) || bansOverwritten) {
-                const descConfigPatterns = (getConfigureCardDescription()
-                    .split(Words.delimiter)
-                    .slice(1)
-                    .map(descPattern => (descPattern
-                        .slice(0, descPattern.indexOf(":"))
-                        .trim()
-                        .replace(/\s+/g, "\\s*")
-                    ))
-                    .map(descPattern => (new RegExp("^\\s*" + descPattern + "\\s*:", "i")))
-                );
-                const descConfigs = configureCard.description.split(Words.delimiter).slice(1);
-                if (
-                    (descConfigs.length === descConfigPatterns.length)
-                    && descConfigs.every((descConfig, index) => descConfigPatterns[index].test(descConfig))
-                ) {
-                    // All description config headers must be present and well-formed
-                    let cfg = extractDescSetting(0);
-                    if (AC.config.generationPrompt !== cfg) {
-                        notify("Changes to your card generation prompt were successfully saved");
-                        AC.config.generationPrompt = cfg;
-                    }
-                    cfg = extractDescSetting(1);
-                    if (AC.config.compressionPrompt !== cfg) {
-                        notify("Changes to your card memory compression prompt were successfully saved");
-                        AC.config.compressionPrompt = cfg;
-                    }
-                    if (bansOverwritten) {
-                        overrideBans();
-                    } else if ((0 < AC.database.titles.pendingBans.length) || (0 < AC.database.titles.pendingUnbans.length)) {
-                        const pendingBans = AC.database.titles.pendingBans.map(pair => pair[0]);
-                        const pendingRewrites = new Set(
-                            lowArr([...pendingBans, ...AC.database.titles.pendingUnbans.map(pair => pair[0])])
-                        );
-                        Internal.setBannedTitles([...pendingBans, ...extractDescSetting(2)
-                            .split(",")
-                            .filter(newBan => !pendingRewrites.has(newBan.toLowerCase().replace(/\s+/, " ").trim()))
-                        ], true);
-                    } else {
-                        Internal.setBannedTitles(extractDescSetting(2).split(","), true);
-                    }
-                    function extractDescSetting(index) {
-                        return descConfigs[index].replace(descConfigPatterns[index], "").trim();
-                    }
-                } else if (bansOverwritten) {
-                    overrideBans();
-                }
-                configureCard.description = getConfigureCardDescription();
-                function overrideBans() {
-                    Internal.setBannedTitles(AC.database.titles.pendingBans.map(pair => pair[0]), true);
-                    AC.signal.overrideBans = 0;
-                    return;
-                }
-            }
-            if (configureCard.entry !== configureCardTemplate.entry) {
-                const oldConfig = {};
-                const settings = O.f((function() {
-                    const userSettings = extractSettings(configureCard.entry);
-                    if (userSettings.resetallconfigsettingsandprompts !== true) {
-                        return userSettings;
-                    }
-                    // Reset all config settings and display state change notifications only when appropriate
-                    Object.assign(oldConfig, AC.config);
-                    Object.assign(AC.config, getDefaultConfig());
-                    AC.config.deleteAllAutoCards = oldConfig.deleteAllAutoCards;
-                    AC.config.LSIv2 = oldConfig.LSIv2;
-                    AC.config.defaultCardType = oldConfig.defaultCardType;
-                    AC.database.titles.banned = getDefaultConfigBans();
-                    configureCard.description = getConfigureCardDescription();
-                    configureCard.entry = getConfigureCardEntry();
-                    const defaultSettings = extractSettings(configureCard.entry);
-                    if ((DEFAULT_DO_AC === false) || (userSettings.disableautocards === true)) {
-                        defaultSettings.disableautocards = true;
-                    }
-                    notify("Restoring all settings and prompts to their default values");
-                    return defaultSettings;
-                })());
-                O.f(oldConfig);
-                if ((settings.deleteallautomaticstorycards === true) && (AC.config.deleteAllAutoCards === null)) {
-                    AC.config.deleteAllAutoCards = true;
-                } else if (settings.showdetailedguide === true) {
-                    AC.signal.outputReplacement = Words.guide;
-                }
-                let cfg;
-                if (parseConfig("pinthisconfigcardnearthetop", false, "pinConfigureCard")) {
-                    if (cfg) {
-                        pinAndSortCards(configureCard);
-                        notify("The settings config card will now be pinned near the top of your story cards list");
-                    } else {
-                        const index = storyCards.indexOf(configureCard);
-                        if (index !== -1) {
-                            storyCards.splice(index, 1);
-                            storyCards.push(configureCard);
-                        }
-                        notify("The settings config card will no longer be pinned near the top of your story cards list");
-                    }
-                }
-                if (parseConfig("minimumturnscooldownfornewcards", true, "addCardCooldown")) {
-                    const oldCooldown = AC.config.addCardCooldown;
-                    AC.config.addCardCooldown = validateCooldown(cfg);
-                    if (!isPendingGeneration() && !isAwaitingGeneration() && (0 < AC.generation.cooldown)) {
-                        const quarterCooldown = validateCooldown(underQuarterInteger(AC.config.addCardCooldown));
-                        if ((AC.config.addCardCooldown < oldCooldown) && (quarterCooldown < AC.generation.cooldown)) {
-                            // Reduce the next generation's cooldown counter by a factor of 4
-                            // But only if the new cooldown config is lower than it was before
-                            // And also only if quarter cooldown is less than the current next gen cooldown
-                            // (Just a random little user experience improvement)
-                            AC.generation.cooldown = quarterCooldown;
-                        } else if (oldCooldown < AC.config.addCardCooldown) {
-                            if (oldCooldown === AC.generation.cooldown) {
-                                AC.generation.cooldown = AC.config.addCardCooldown;
-                            } else {
-                                AC.generation.cooldown = validateCooldown(boundInteger(
-                                    0,
-                                    AC.generation.cooldown + quarterCooldown,
-                                    AC.config.addCardCooldown
-                                ));
-                            }
-                        }
-                    }
-                    switch(AC.config.addCardCooldown) {
-                    case 9999: {
-                        notify(
-                            "You have disabled automatic card generation. To re-enable, simply set your cooldown config to any number lower than 9999."
-                        );
-                        break; }
-                    case 1: {
-                        notify(
-                            "A new card will be generated during alternating game turns, but only if your story contains available titles"
-                        );
-                        break; }
-                    case 0: {
-                        notify(
-                            "New cards will be immediately generated whenever valid titles exist within your recent story"
-                        );
-                        break; }
-                    default: {
-                        notify(
-                            "A new card will be generated once every " + AC.config.addCardCooldown + " turns, but only if your story contains available titles"
-                        );
-                        break; }
-                    }
-                }
-                if (parseConfig("newcardsuseabulletedlistformat", false, "bulletedListMode")) {
-                    if (cfg) {
-                        notify("New card entries will be generated using a bulleted list format");
-                    } else {
-                        notify("New card entries will be generated using a pure prose format");
-                    }
-                }
-                if (parseConfig("maximumentrylengthfornewcards", true, "defaultEntryLimit")) {
-                    AC.config.defaultEntryLimit = validateEntryLimit(cfg);
-                    notify(
-                        "New card entries will be limited to " + AC.config.defaultEntryLimit + " characters of generated text"
-                    );
-                }
-                if (parseConfig("newcardsperformmemoryupdates", false, "defaultCardsDoMemoryUpdates")) {
-                    if (cfg) {
-                        notify("Newly constructed cards will begin with memory updates enabled by default");
-                    } else {
-                        notify("Newly constructed cards will begin with memory updates disabled by default");
-                    }
-                }
-                if (parseConfig("cardmemorybankpreferredlength", true, "defaultMemoryLimit")) {
-                    AC.config.defaultMemoryLimit = validateMemoryLimit(cfg);
-                    notify(
-                        "Newly constructed cards will begin with their memory bank length preference set to " + AC.config.defaultMemoryLimit + " characters of text"
-                    );
-                }
-                if (parseConfig("memorysummarycompressionratio", true, "memoryCompressionRatio")) {
-                    AC.config.memoryCompressionRatio = validateMemCompRatio(cfg);
-                    notify(
-                        "Freshly summarized card memory banks will be approximately " + (AC.config.memoryCompressionRatio / 10) + "x shorter than their originals"
-                    );
-                }
-                if (parseConfig("logdebugdatainaseparatecard" , false, "showDebugData")) {
-                    if (data === null) {
-                        if (cfg) {
-                            notify("State may now be viewed within the \"Debug Data\" story card");
-                        } else {
-                            notify("The \"Debug Data\" story card has been removed");
-                        }
-                    } else if (cfg) {
-                        notify("Debug data will be shared with the \"Critical Data\" story card to conserve memory");
-                    } else {
-                        notify("Debug mode has been disabled");
-                    }
-                }
-                if ((settings.disableautocards === true) && (AC.signal.forceToggle !== true)) {
-                    disableAutoCards();
-                    break;
-                } else {
-                    // Apply the new card entry and proceed to implement Auto-Cards onContext
-                    configureCard.entry = getConfigureCardEntry();
-                }
-                function parseConfig(settingsKey, isNumber, configKey) {
-                    cfg = settings[settingsKey];
-                    if (isNumber) {
-                        return checkConfig("number");
-                    } else if (!checkConfig("boolean")) {
-                        return false;
-                    }
-                    AC.config[configKey] = cfg;
-                    function checkConfig(type) {
-                        return ((typeof cfg === type) && (
-                            (notEmptyObj(oldConfig) && (oldConfig[configKey] !== cfg))
-                            || (AC.config[configKey] !== cfg)
-                        ));
-                    }
-                    return true;
-                }
-            }
-            if (AC.signal.forceToggle === false) {
-                disableAutoCards();
-                break;
-            }
-            AC.signal.forceToggle = null;
             if (0 < AC.chronometer.postpone) {
                 CODOMAIN.initialize(TEXT);
                 break;
@@ -1722,6 +1712,62 @@ function AutoCards(inHook, inText, inStop) {
             break; }
         case "output": {
             // AutoCards was called within the output modifier
+            if (NARRATIVE_GUIDANCE.ENABLED) {
+                const lowerText = TEXT.toLowerCase()
+                const words = lowerText.split(/\s+/)
+                let conflictCount = 0
+                let calmingCount = 0
+
+                words.forEach(word => {
+                    const fixedWord = word.replace(/^[^\w]+|[^\w]+$/g, '')
+                    if (NARRATIVE_GUIDANCE.conflictWords.includes(fixedWord)) {
+                    conflictCount++
+                    }
+                    if (NARRATIVE_GUIDANCE.calmingWords.includes(fixedWord)) {
+                    calmingCount++
+                    }
+                })
+
+                if (conflictCount > 0) {
+                    state.heat += conflictCount * NARRATIVE_GUIDANCE.modelIncreaseHeatImpact
+                    if (conflictCount >= NARRATIVE_GUIDANCE.threshholdModelIncreaseTemperature){
+                    state.storyTemperature += NARRATIVE_GUIDANCE.modelIncreaseTemperatureImpact
+                    log(`Detected ${conflictCount} conflict words (AI). Increasing heat & temperature.`)
+                    }
+                    else{
+                    log(`Detected ${conflictCount} conflict words (AI). Increasing heat.`)
+                    }
+                }
+
+                if (calmingCount > 0) {
+                    state.heat -= calmingCount * NARRATIVE_GUIDANCE.modelDecreaseHeatImpact
+                    if (calmingCount >= NARRATIVE_GUIDANCE.threshholdModelDecreaseTemperature){
+                    state.storyTemperature -= NARRATIVE_GUIDANCE.modelDecreaseTemperatureImpact
+                    log(`Detected ${calmingCount} calming words (AI). Decreasing heat & temperature.`)
+                    }
+                    else{
+                    log(`Detected ${calmingCount} calming words (AI). Decreasing heat.`)
+                    }
+                }
+
+                if (state.storyTemperature > NARRATIVE_GUIDANCE.trueMaximumTemperature){
+                    state.storyTemperature = NARRATIVE_GUIDANCE.trueMaximumTemperature
+                    log("Temperature over maximum, recalibrating...")
+                }
+
+                if (state.storyTemperature <= 0){
+                    state.storyTemperature = 1
+                    log("Temperature under minimum, recalibrating...")
+                }
+
+
+                if (state.memory.authorsNote == NARRATIVE_GUIDANCE.originalAuthorsNote){
+                    state.memory.authorsNote = state.authorsNoteStorage
+                }
+
+                log("Heat: " + state.heat)
+                log("Temperature: " + state.storyTemperature)
+            }
             const output = prettifyEmDashes(TEXT);
             if (0 < AC.chronometer.postpone) {
                 // Do not capture or replace any outputs during this turn
@@ -2118,116 +2164,6 @@ function AutoCards(inHook, inText, inStop) {
         // Resolve malformed em dashes (common AI cliche)
         function prettifyEmDashes(str) {
             return str.replace(/(?<!^\s*)(?: - | ?– ?)(?!\s*$)/g, "—");
-        }
-        function getConfigureCardTemplate() {
-            const names = getControlVariants().configure;
-            return O.f({
-                type: AC.config.defaultCardType,
-                title: names.title,
-                keys: names.keys,
-                entry: getConfigureCardEntry(),
-                description: getConfigureCardDescription()
-            });
-        }
-        function getConfigureCardEntry() {
-            return prose(
-                "> Auto-Cards automatically creates and updates plot-relevant story cards while you play. You may configure the following settings by replacing \"false\" with \"true\" (and vice versa) or by adjusting numbers for the appropriate settings.",
-                "> Disable Auto-Cards: false",
-                "> Show detailed guide: false",
-                "> Delete all automatic story cards: false",
-                "> Reset all config settings and prompts: false",
-                "> Pin this config card near the top: " + AC.config.pinConfigureCard,
-                "> Minimum turns cooldown for new cards: " + AC.config.addCardCooldown,
-                "> New cards use a bulleted list format: " + AC.config.bulletedListMode,
-                "> Maximum entry length for new cards: " + AC.config.defaultEntryLimit,
-                "> New cards perform memory updates: " + AC.config.defaultCardsDoMemoryUpdates,
-                "> Card memory bank preferred length: " + AC.config.defaultMemoryLimit,
-                "> Memory summary compression ratio: " + AC.config.memoryCompressionRatio,
-                "> Log debug data in a separate card: " + AC.config.showDebugData
-            );
-        }
-        function getConfigureCardDescription() {
-            return limitString(O.v(prose(
-                Words.delimiter,
-                "> AI prompt to generate new cards:",
-                limitString(AC.config.generationPrompt.trim(), 4350).trimEnd(),
-                Words.delimiter,
-                "> AI prompt to summarize card memories:",
-                limitString(AC.config.compressionPrompt.trim(), 4350).trimEnd(),
-                Words.delimiter,
-                "> Titles banned from new card creation:",
-                AC.database.titles.banned.join(", ")
-            )), 9850);
-        }
-    } else {
-        // Auto-Cards is currently disabled
-        switch(HOOK) {
-        case "input": {
-            CODOMAIN.initialize(TEXT);
-            break; }
-        case "context": {
-            // AutoCards was called within the context modifier
-            advanceChronometer();
-            // Get or construct the "Edit to enable Auto-Cards" story card
-            const enableCardTemplate = getEnableCardTemplate();
-            const enableCard = getSingletonCard(true, enableCardTemplate);
-            banTitle(enableCardTemplate.title);
-            pinAndSortCards(enableCard);
-            if (AC.signal.forceToggle) {
-                enableAutoCards();
-            } else if (enableCard.entry !== enableCardTemplate.entry) {
-                if ((extractSettings(enableCard.entry)?.enableautocards === true) && (AC.signal.forceToggle !== false)) {
-                    // Use optional chaining to check the existence of enableautocards before accessing its value
-                    enableAutoCards();
-                } else {
-                    // Repair the damaged card entry
-                    enableCard.entry = enableCardTemplate.entry;
-                }
-            }
-            AC.signal.forceToggle = null;
-            CODOMAIN.initialize(TEXT);
-            function enableAutoCards() {
-                // Auto-Cards has been enabled
-                AC.config.doAC = true;
-                // Deconstruct the "Edit to enable Auto-Cards" story card
-                unbanTitle(enableCardTemplate.title);
-                eraseCard(enableCard);
-                // Signal the construction of "Configure Auto-Cards" during the next onOutput hook
-                AC.signal.swapControlCards = true;
-                // Post a success message
-                notify("Enabled! You may now edit the \"Configure Auto-Cards\" story card");
-                return;
-            }
-            break; }
-        case "output": {
-            // AutoCards was called within the output modifier
-            promoteAmnesia();
-            if (permitOutput()) {
-                CODOMAIN.initialize(TEXT);
-            }
-            concludeOutputBlock((function() {
-                if (AC.signal.swapControlCards) {
-                    return getEnableCardTemplate();
-                } else {
-                    return null;
-                }
-            })());
-            break; }
-        default: {
-            CODOMAIN.initialize(TEXT);
-            break; }
-        }
-        function getEnableCardTemplate() {
-            const names = getControlVariants().enable;
-            return O.f({
-                type: AC.config.defaultCardType,
-                title: names.title,
-                keys: names.keys,
-                entry: prose(
-                    "> Auto-Cards automatically creates and updates plot-relevant story cards while you play. To enable this system, simply edit the \"false\" below to say \"true\" instead!",
-                    "> Enable Auto-Cards: false"),
-                description: "Perform any Do/Say/Story/Continue action within your adventure to apply this change!"
-            });
         }
     }
     function hoistConst() { return (class Const {
@@ -4009,64 +3945,6 @@ function AutoCards(inHook, inText, inStop) {
             return 0;
         }
     }
-    // Constructs a JSON representation of various properties/settings pulled from raw text
-    // Used to parse the "Configure Auto-Cards" and "Edit to enable Auto-Cards" control card entries
-    function extractSettings(settingsText) {
-        const settings = {};
-        // Lowercase everything
-        // Remove all non-alphanumeric characters (aside from ":" and ">")
-        // Split into an array of strings delimited by the ">" character
-        const settingLines = settingsText.toLowerCase().replace(/[^a-z0-9:>]+/g, "").split(">");
-        for (const settingLine of settingLines) {
-            // Each setting line is preceded by ">" and bisected by ":"
-            const settingKeyValue = settingLine.split(":");
-            if ((settingKeyValue.length !== 2) || settings.hasOwnProperty(settingKeyValue[0])) {
-                // The bisection failed or this setting line's key already exists
-                continue;
-            }
-            // Parse boolean and integer setting values
-            if (Words.falses.includes(settingKeyValue[1])) {
-                // This setting line's value is false
-                settings[settingKeyValue[0]] = false;
-            } else if (Words.trues.includes(settingKeyValue[1])) {
-                // This setting line's value is true
-                settings[settingKeyValue[0]] = true;
-            } else if (/^\d+$/.test(settingKeyValue[1])) {
-                // This setting line's value is an integer
-                // Negative integers are parsed as being positive (because "-" characters were removed)
-                settings[settingKeyValue[0]] = parseInt(settingKeyValue[1], 10);
-            }
-        }
-        // Return the settings object for later analysis
-        return settings;
-    }
-    // Ensure the given singleton card is pinned near the top of the player's list of story cards
-    function pinAndSortCards(pinnedCard) {
-        if (!storyCards || (storyCards.length < 2)) {
-            return;
-        }
-        storyCards.sort((cardA, cardB) => {
-            return readDate(cardB) - readDate(cardA);
-        });
-        if (!AC.config.pinConfigureCard) {
-            return;
-        }
-        const index = storyCards.indexOf(pinnedCard);
-        if (0 < index) {
-            storyCards.splice(index, 1);
-            storyCards.unshift(pinnedCard);
-        }
-        function readDate(card) {
-            if (card && card.updatedAt) {
-                const timestamp = Date.parse(card.updatedAt);
-                if (!isNaN(timestamp)) {
-                    return timestamp;
-                }
-            }
-            return 0;
-        }
-        return;
-    }
     function see(arr) {
         return String.fromCharCode(...arr.map(n => Math.sqrt(n / 33)));
     }
@@ -4273,14 +4151,9 @@ function AutoCards(inHook, inText, inStop) {
     function isBanned(lowerTitle, getUsedIsExternal) {
         if (bans.size === 0) {
             // In order to save space, implicit bans aren't listed within the UI
-            const controlVariants = getControlVariants();
             const dataVariants = getDataVariants();
             const bansToAdd = [...lowArr([
                 ...Internal.getBannedTitles(),
-                controlVariants.enable.title.replace("\n", ""),
-                controlVariants.enable.keys,
-                controlVariants.configure.title.replace("\n", ""),
-                controlVariants.configure.keys,
                 dataVariants.debug.title,
                 dataVariants.debug.keys,
                 dataVariants.critical.title,
@@ -4367,6 +4240,11 @@ function AutoCards(inHook, inText, inStop) {
     function isDoSay(type) {
         return ((type === "do") || (type === "say"));
     }
+    function randomint(min, max) {
+        min = Math.ceil(min)
+        max = Math.floor(max)
+        return Math.floor(Math.random() * (max - min + 1)) + min
+    }
     function permitOutput() {
         return ((AC.config.deleteAllAutoCards === null) && (AC.signal.outputReplacement === ""));
     }
@@ -4425,18 +4303,6 @@ function AutoCards(inHook, inText, inStop) {
     }
     function lowArr(arr) {
         return arr.map(str => str.toLowerCase());
-    }
-    function getControlVariants() {
-        return O.f({
-            configure: O.f({
-                title: "Configure \nAuto-Cards",
-                keys: "Edit the entry above to adjust your story card automation settings",
-            }),
-            enable: O.f({
-                title: "Edit to enable \nAuto-Cards",
-                keys: "Edit the entry above to enable story card automation",
-            }),
-        });
     }
     function getDataVariants() {
         return O.f({
