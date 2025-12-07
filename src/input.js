@@ -1,45 +1,78 @@
 // Your "Input" tab should look like this
+
 /* === STORY ARC CONFIGURATION === */
-state.originalAuthorsNote = "Put your original authors note here!" //Add your story's authors note here. This will allow the system to modify the authors note whiile preserving your current one. If you have a dynamically changing authors note, you can instead put a "state.variableName" here.
 
-state.initialHeatValue = 0 //Increasing this will increase the chance of the temperature increasing in the first few moments of the story.
-state.initialTemperatureValue = 1 //Increasing this will increase the amount of conflict and tension in the initial sections of the story.
-state.temperatureIncreaseChance = 15 //Increasing this value makes the conflict and tension in the story advance quicker.
+// Your original author's note.
+state.originalAuthorsNote = "Put your original authors note here!";
 
-state.heatIncreaseValue = 1 //Increasing this value makes the temperature increase more often, creating a faster paced story.
-state.temperatureIncreaseValue = 1 //Increasing this value makes the conflit and tension in the story advance by larger segments, so the story will feel less like a gradual slope of tension and more like big steps.
+// Initial heat value. Higher values increase the chance of temperature rising early.
+state.initialHeatValue = 0;
+// Initial temperature value. Higher values increase initial conflict.
+state.initialTemperatureValue = 1;
+// Chance of temperature increase. Higher values accelerate conflict.
+state.temperatureIncreaseChance = 15;
 
-state.playerIncreaseHeatImpact = 2 //The impact that the player has on increasing the conflict, so if the player attacks an NPC or does something drama inducing, the conflict and tension will increase by this amount.
-state.playerDecreaseHeatImpact = 2 //The impact that the player has on decreasing the conflict, so if the player helps others or is doing something relaxing, the conflict and tension will decrease by this amount.
-state.playerIncreaseTemperatureImpact = 1 //The impact that the player has on increasing the conflict, so if the player attacks an NPC or does something drama inducing, the conflict and tension will increase by this amount.
-state.playerDecreaseTemperatureImpact = 1 //The impact that the player has on decreasing the conflict, so if the player helps others or is doing something relaxing, the conflict and tension will decrease by this amount.
-state.threshholdPlayerIncreaseTemperature = 2 //This is the number of conflict words that have to be said by the player in their input in order to increase the temperature.
-state.threshholdPlayerDecreaseTemperature = 2 //This is the number of calming words that have to be said by the player in their input in order to decrease the temperature.
+// Rate of heat increase. Higher values lead to a faster-paced story.
+state.heatIncreaseValue = 1;
+// Amount of temperature increase. Higher values create larger jumps in tension.
+state.temperatureIncreaseValue = 1;
 
-state.modelIncreaseHeatImpact = 1 //The impact that the AI model has on increasing the conflict.
-state.modelDecreaseHeatImpact = 2 //The impact that the AI model has on decreasing the conflict.
-state.modelIncreaseTemperatureImpact = 1 //The impact that the AI model has on increasing the conflict.
-state.modelDecreaseTemperatureImpact = 1 //The impact that the AI model has on decreasing the conflict.
-state.threshholdModelIncreaseTemperature = 3 //This is the number of conflict words that have to be said by the AI Model in in order to increase the temperature.
-state.threshholdModelDecreaseTemperature = 3 //This is the number of conflict words that have to be said by the AI Model in in order to decrease the temperature.
+// Player's impact on increasing conflict.
+state.playerIncreaseHeatImpact = 2;
+// Player's impact on decreasing conflict.
+state.playerDecreaseHeatImpact = 2;
+// Player's impact on increasing temperature.
+state.playerIncreaseTemperatureImpact = 1;
+// Player's impact on decreasing temperature.
+state.playerDecreaseTemperatureImpact = 1;
+// Number of conflict words from player to increase temperature.
+state.threshholdPlayerIncreaseTemperature = 2;
+// Number of calming words from player to decrease temperature.
+state.threshholdPlayerDecreaseTemperature = 2;
 
-state.maximumTemperature = 12 //This is the maximum level of conflict the story can get to. Lower values make for a more calm experience, while higher values can make the story go overboard with the AI trying to kill you at every step. Be careful with this value, as it can get out of hand quite quickly.
-state.trueMaximumTemperature = 15 //This determines the actual maximum temperature, as random explosions can cause the normal maxmium temperature to increase beyond its normal state. Players cannot cause the temperature to increase beyond the normal maximum. !WARNING! TRUE MAXIMUM TEMPERATURE VALUES ABOVE 15 CAN CAUSE CHAOTIC AND HIGHLY DESTRUCTIVE EVENTS TO RUIN YOUR STORY. ONLY ENABLE VALUES ABOVE 15 IF YOU WANT A REALLY PUNISHING EXPERIENCE.
+// AI's impact on increasing conflict.
+state.modelIncreaseHeatImpact = 1;
+// AI's impact on decreasing conflict.
+state.modelDecreaseHeatImpact = 2;
+// AI's impact on increasing temperature.
+state.modelIncreaseTemperatureImpact = 1;
+// AI's impact on decreasing temperature.
+state.modelDecreaseTemperatureImpact = 1;
+// Number of conflict words from AI to increase temperature.
+state.threshholdModelIncreaseTemperature = 3;
+// Number of calming words from AI to decrease temperature.
+state.threshholdModelDecreaseTemperature = 3;
 
-state.minimumTemperature = 1 //This determines the lowest value that the player can get the temperature to. Systems like AI influence can reduce it to whatever the true minimum temperature value is.
-state.trueMinimumTemperature = 1 //This determines the true lowest value that the temperature can get to. No system can set the value of the temperature to anything lower.
+// Maximum level of conflict in the story.
+state.maximumTemperature = 12;
+// Absolute maximum temperature. Values above 15 can be chaotic.
+state.trueMaximumTemperature = 15;
 
-state.smartOverheatTimer = "This feature is currently being worked on, do not set it to true." //If you set this setting to true, it will make the overheat timer entirely dependent on what is being said and done in the story. For instance if people are in combat and fighting, or a heavily dramatic climax is going on, the smart timer will detect this and keep the action going for until the action is resolved. !WARNING! THIS FEATURE CAN BE INCREADIBLY BUGGY AND CAUSE CONFLICTS TO GO ON FOREVER DEPENDING ON YOUR MODEL AND SETTINGS. BE CAREFUL WHEN USING THIS.
-state.overheatTimer = 4 //After the maximum temperature is reached, the script will go into overheat mode, meaning that after this many actions, the temperature will start to decrease. This is good if you want your maximum tension point to last multiple actions before calming down.
-state.overheatReductionForHeat = 5 //After the overheat timer is over, the temperature will decrease by this amount. A higher number will make the story much calmer after the maxmium temperature point, a lower number will make the action decrease more gradually.
-state.overheatReductionForTemperature = 1 //After the overheat timer is over, the temperature will decrease by this amount. A higher number will make the story much calmer after the maxmium temperature point, a lower number will make the action decrease more gradually.
+// Minimum temperature the player can achieve.
+state.minimumTemperature = 1;
+// Absolute minimum temperature.
+state.trueMinimumTemperature = 1;
 
-state.cooldownTimer = 5 //After the overheat timer is over, this cooldown timer determines the number of actions the story will take before being able to increase the temperature and conflict again. A higher value will allow the player to have more downtime, a lower value will push the player to jump into the next conflict faster.
-state.cooldownRate = 2 //For each action that the cooldown phase goes for, the temperature will reduce by this amount. A higher value will make the temperature decrease more rapidly, a lower value will make the cooldown more of a gradual slope.
+// If true, the overheat timer becomes dependent on story events. (EXPERIMENTAL)
+state.smartOverheatTimer = "This feature is currently being worked on, do not set it to true.";
+// Number of actions before temperature decreases after reaching maximum.
+state.overheatTimer = 4;
+// Amount heat is reduced after overheat.
+state.overheatReductionForHeat = 5;
+// Amount temperature is reduced after overheat.
+state.overheatReductionForTemperature = 1;
 
-state.randomExplosionChance = 3 //This determines the percent chance that the story will suddenly have the temperature increased by a large value.
-state.randomExplosionHeatIncreaseValue = 5 //This determines the impact of the random temperature increase. A higher value will make the story suddenly have something crazy happen, a lower value will make more of a mild surprise.
-state.randomExplosionTemperatureIncreaseValue = 2 //This determines the impact of the random temperature increase. A higher value will make the story suddenly have something crazy happen, a lower value will make more of a mild surprise.
+// Number of actions before temperature can increase again after an overheat.
+state.cooldownTimer = 5;
+// Amount temperature is reduced during each action in the cooldown phase.
+state.cooldownRate = 2;
+
+// Percent chance of a sudden, large temperature increase.
+state.randomExplosionChance = 3;
+// Impact of a random heat increase.
+state.randomExplosionHeatIncreaseValue = 5;
+// Impact of a random temperature increase.
+state.randomExplosionTemperatureIncreaseValue = 2;
 
 
 /* DONT MODIFY ANYTHING BEYOND THIS POINT */
