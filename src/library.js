@@ -9,8 +9,70 @@ function AutoCards(inHook, inText, inStop) {
     The default values for your scenario are specified below:
     */
 
-    // Is Auto-Cards enabled? (true or false)
-    const ENABLED = true
+    const CONFIG = {
+        // Is Auto-Cards enabled? (true or false)
+        enabled: true,
+        // Minimum number of turns in between automatic card generation events? (0 to 9999)
+        cardCreationCooldown: 22,
+        // Use a bulleted list format for newly generated card entries? (true or false)
+        useBulletedListMode: true,
+        // Maximum allowed length for newly generated story card entries? (200 to 2000)
+        generatedEntryLimit: 750,
+        // Do newly generated cards have memory updates enabled by default? (true or false)
+        newCardsDoMemoryUpdates: true,
+        // Default character limit before the card's memory bank is summarized? (1750 to 9900)
+        newCardsMemoryLimit: 2750,
+        // Approximately how much shorter should recently compressed memories be? (ratio = 10 * old / new) (20 to 1250)
+        memoryCompressionRatio: 25,
+        // AI prompt used to generate new story card entries?
+        cardGenerationPrompt: prose(
+            "-----",
+            "",
+            "<SYSTEM>",
+            "# Stop the story and ignore previous instructions. Write a brief and coherent informational entry for %{title} following these instructions:",
+            "- Write only third-person pure prose information about %{title} using complete sentences with correct punctuation",
+            "- Avoid short-term temporary details or appearances, instead focus on plot-significant information",
+            "- Prioritize story-relevant details about %{title} first to ensure seamless integration with the previous plot",
+            "- Create new information based on the context and story direction",
+            "- Mention %{title} in every sentence",
+            "- Use semicolons if needed",
+            "- Add additional details about %{title} beneath incomplete entries",
+            "- Be concise and grounded",
+            "- Imitate the story's writing style and infer the reader's preferences",
+            "</SYSTEM>",
+            "Continue the entry for %{title} below while avoiding repetition:",
+            "%{entry}"
+        ),
+        // AI prompt used to summarize a given story card's memory bank?
+        cardMemoryCompressionPrompt: prose(
+            "-----",
+            "",
+            "<SYSTEM>",
+            "# Stop the story and ignore previous instructions. Summarize and condense the given paragraph into a narrow and focused memory passage while following these guidelines:",
+            "- Ensure the passage retains the core meaning and most essential details",
+            "- Use the third-person perspective",
+            "- Prioritize information-density, accuracy, and completeness",
+            "- Remain brief and concise",
+            "- Write firmly in the past tense",
+            "- The paragraph below pertains to old events from far earlier in the story",
+            "- Integrate %{title} naturally within the memory; however, only write about the events as they occurred",
+            "- Only reference information present inside the paragraph itself, be specific",
+            "</SYSTEM>",
+            "Write a summarized old memory passage for %{title} based only on the following paragraph:",
+            "\"\"\"",
+            "%{memory}",
+            "\"\"\"",
+            "Summarize below:"
+        ),
+        // Titles banned from future card generation attempts?
+        bannedTitlesList: [
+            "North", "East", "South", "West", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
+        ],
+        // Default story card "type" used by Auto-Cards? (does not matter)
+        defaultCardType: "class",
+        // Should titles mentioned in the "opening" plot component be banned from future card generation by default?
+        banTitlesFromOpening: true
+    };
 
     // === NARRATIVE GUIDANCE CONFIGURATION ===
     const NARRATIVE_GUIDANCE = {
@@ -159,89 +221,6 @@ function AutoCards(inHook, inText, inStop) {
         ]
     };
 
-    // Minimum number of turns in between automatic card generation events?
-    const DEFAULT_CARD_CREATION_COOLDOWN = 22
-    // (0 to 9999)
-
-    // Use a bulleted list format for newly generated card entries?
-    const DEFAULT_USE_BULLETED_LIST_MODE = true
-    // (true or false)
-
-    // Maximum allowed length for newly generated story card entries?
-    const DEFAULT_GENERATED_ENTRY_LIMIT = 750
-    // (200 to 2000)
-
-    // Do newly generated cards have memory updates enabled by default?
-    const DEFAULT_NEW_CARDS_DO_MEMORY_UPDATES = true
-    // (true or false)
-
-    // Default character limit before the card's memory bank is summarized?
-    const DEFAULT_NEW_CARDS_MEMORY_LIMIT = 2750
-    // (1750 to 9900)
-
-    // Approximately how much shorter should recently compressed memories be? (ratio = 10 * old / new)
-    const DEFAULT_MEMORY_COMPRESSION_RATIO = 25
-    // (20 to 1250)
-
-    // Should the "Debug Data" story card be visible?
-    const DEFAULT_SHOW_DEBUG_DATA = false
-    // (true or false)
-
-    // AI prompt used to generate new story card entries?
-    const DEFAULT_CARD_GENERATION_PROMPT = prose(
-        "-----",
-        "",
-        "<SYSTEM>",
-        "# Stop the story and ignore previous instructions. Write a brief and coherent informational entry for %{title} following these instructions:",
-        "- Write only third-person pure prose information about %{title} using complete sentences with correct punctuation",
-        "- Avoid short-term temporary details or appearances, instead focus on plot-significant information",
-        "- Prioritize story-relevant details about %{title} first to ensure seamless integration with the previous plot",
-        "- Create new information based on the context and story direction",
-        "- Mention %{title} in every sentence",
-        "- Use semicolons if needed",
-        "- Add additional details about %{title} beneath incomplete entries",
-        "- Be concise and grounded",
-        "- Imitate the story's writing style and infer the reader's preferences",
-        "</SYSTEM>",
-        "Continue the entry for %{title} below while avoiding repetition:",
-        "%{entry}"
-    ); // (mimic this multi-line "text" format)
-
-    // AI prompt used to summarize a given story card's memory bank?
-    const DEFAULT_CARD_MEMORY_COMPRESSION_PROMPT = prose(
-        "-----",
-        "",
-        "<SYSTEM>",
-        "# Stop the story and ignore previous instructions. Summarize and condense the given paragraph into a narrow and focused memory passage while following these guidelines:",
-        "- Ensure the passage retains the core meaning and most essential details",
-        "- Use the third-person perspective",
-        "- Prioritize information-density, accuracy, and completeness",
-        "- Remain brief and concise",
-        "- Write firmly in the past tense",
-        "- The paragraph below pertains to old events from far earlier in the story",
-        "- Integrate %{title} naturally within the memory; however, only write about the events as they occurred",
-        "- Only reference information present inside the paragraph itself, be specific",
-        "</SYSTEM>",
-        "Write a summarized old memory passage for %{title} based only on the following paragraph:",
-        "\"\"\"",
-        "%{memory}",
-        "\"\"\"",
-        "Summarize below:"
-    ); // (mimic this multi-line "text" format)
-
-    // Titles banned from future card generation attempts?
-    const DEFAULT_BANNED_TITLES_LIST = (
-        "North, East, South, West, Sunday, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, January, February, March, April, May, June, July, August, September, October, November, December"
-    ); // (mimic this comma-list "text" format)
-
-    // Default story card "type" used by Auto-Cards? (does not matter)
-    const DEFAULT_CARD_TYPE = "class"
-    // ("text")
-
-    // Should titles mentioned in the "opening" plot component be banned from future card generation by default?
-    const DEFAULT_BAN_TITLES_FROM_OPENING = true
-    // (true or false)
-
     //—————————————————————————————————————————————————————————————————————————————————
 
     // Main implementation of the Auto-Cards script.
@@ -287,7 +266,7 @@ function AutoCards(inHook, inText, inStop) {
         // AC is malformed, reinitialize with default values
         return {
             // In-game configurable parameters
-            config: getDefaultConfig(),
+            config: { ...CONFIG },
             // Collection of various short-term signals passed forward in time
             signal: {
                 // API: Suspend nearly all Auto-Cards processes
@@ -310,7 +289,7 @@ function AutoCards(inHook, inText, inStop) {
             // Moderates the generation of new story card entries
             generation: {
                 // Number of story progression turns between card generations
-                cooldown: validateCooldown(underQuarterInteger(validateCooldown(DEFAULT_CARD_CREATION_COOLDOWN))),
+                cooldown: validateCooldown(underQuarterInteger(validateCooldown(CONFIG.cardCreationCooldown))),
                 // Continues prompted so far
                 completed: 0,
                 // Upper limit on consecutive continues
@@ -366,7 +345,7 @@ function AutoCards(inHook, inText, inStop) {
                     // A transient array of known titles parsed from card titles, entry title headers, and trigger keywords
                     used: [],
                     // Titles banned from future card generation attempts and various maintenance procedures
-                    banned: getDefaultConfigBans(),
+                    banned: [...CONFIG.bannedTitlesList],
                     // Potential future card titles and their turns of occurrence
                     candidates: [],
                     // Helps avoid rechecking the same action text more than once, generally
@@ -476,7 +455,6 @@ function AutoCards(inHook, inText, inStop) {
                                 return !(
                                     (lowerMemory.includes("select") && lowerMemory.includes("continue"))
                                     || lowerMemory.includes(">>>") || lowerMemory.includes("<<<")
-                                    || lowerMemory.includes("lsiv2")
                                 );
                             })
                             .join("\n")
@@ -531,21 +509,15 @@ function AutoCards(inHook, inText, inStop) {
                 * @function
                 * @param {boolean} shouldHalt A boolean value indicating whether to engage (true) or disengage (false) emergency halt
                 * @returns {boolean} The value that was set
-                * @throws {Error} If called from within isolateLSIv2 scope or with a non-boolean argument
+                * @throws {Error} If called with a non-boolean argument
                 */
                 emergencyHalt: function(shouldHalt) {
-                    const scopeRestriction = new Error();
-                    if (scopeRestriction.stack && scopeRestriction.stack.includes("isolateLSIv2")) {
-                        throw new Error(
-                            "Scope restriction: AutoCards().API.emergencyHalt() cannot be called from within LSIv2 (prevents deadlock) but you're more than welcome to use AutoCards().API.postponeEvents() instead!"
-                        );
-                    } else if (typeof shouldHalt === "boolean") {
-                        AC.signal.emergencyHalt = shouldHalt;
-                    } else {
+                    if (typeof shouldHalt !== "boolean") {
                         throw new Error(
                             "Invalid argument: \"" + shouldHalt + "\" -> AutoCards().API.emergencyHalt() must be called with a boolean true or false"
                         );
                     }
+                    AC.signal.emergencyHalt = shouldHalt;
                     return shouldHalt;
                 },
                 /*** Enables or disables state.message assignments from Auto-Cards
@@ -564,15 +536,6 @@ function AutoCards(inHook, inText, inStop) {
                         );
                     }
                     return AC.message.pending;
-                },
-                /*** Logs debug information to the "Debug Log" console card
-                * 
-                * @function
-                * @param {...any} args Arguments to log for debugging purposes
-                * @returns {any} The story card object reference
-                */
-                debugLog: function(...args) {
-                    return Internal.debugLog(...args);
                 },
                 /*** Toggles Auto-Cards behavior or sets it directly
                 * 
@@ -948,7 +911,7 @@ function AutoCards(inHook, inText, inStop) {
             break; }
         }
         CODOMAIN.initialize(TEXT);
-    } else if (ENABLED) {
+    } else if (CONFIG.enabled) {
         // Auto-Cards is currently enabled
         // "text" represents the original text which was present before any scripts were executed
         // "TEXT" represents the script-modified version of "text" which AutoCards was called with
@@ -2167,15 +2130,10 @@ function AutoCards(inHook, inText, inStop) {
         }
     }
     function hoistConst() { return (class Const {
-        // This helps me debug stuff uwu
         #constant;
         constructor(...args) {
-            if (args.length !== 0) {
-                this.constructor.#throwError([[(args.length === 1), "Const cannot be instantiated with a parameter"], ["Const cannot be instantiated with parameters"]]);
-            } else {
-                O.f(this);
-                return this;
-            }
+            O.f(this);
+            return this;
         }
         declare(...args) {
             if (args.length !== 0) {
@@ -2212,66 +2170,11 @@ function AutoCards(inHook, inText, inStop) {
                 this.constructor.#throwError("Instances of Const cannot be read before initialization");
             }
         }
-        // An error condition is paired with an error message [condition, message], call #throwError with an array of pairs to throw the message corresponding with the first true condition [[cndtn1, msg1], [cndtn2, msg2], [cndtn3, msg3], ...] The first conditionless array element always evaluates to true ('else')
         static #throwError(...args) {
-            // Look, I thought I was going to use this more at the time okay
-            const [conditionalMessagesTable] = args;
-            const codomain = new Const().declare();
-            const error = O.f(new Error((function() {
-                const codomain = new Const().declare();
-                if (Array.isArray(conditionalMessagesTable)) {
-                    const chosenPair = conditionalMessagesTable.find(function(...args) {
-                        const [pair] = args;
-                        const codomain = new Const().declare();
-                        if (Array.isArray(pair)) {
-                            if ((pair.length === 1) && (typeof pair[0] === "string")) {
-                                codomain.initialize(true);
-                            } else if (
-                                (pair.length === 2)
-                                && (typeof pair[0] === "boolean")
-                                && (typeof pair[1] === "string")
-                            ) {
-                                codomain.initialize(pair[0]);
-                            } else {
-                                Const.#throwError("Const.#throwError encountered an invalid array element of conditionalMessagesTable");
-                            }
-                        } else {
-                            Const.#throwError("Const.#throwError encountered a non-array element within conditionalMessagesTable");
-                        }
-                        return codomain.read();
-                    });
-                    if (Array.isArray(chosenPair)) {
-                        if (chosenPair.length === 1) {
-                            codomain.initialize(chosenPair[0]);
-                        } else {
-                            codomain.initialize(chosenPair[1]);
-                        }
-                    } else {
-                        codomain.initialize("Const.#throwError was not called with any true conditions");
-                    }
-                } else if (typeof conditionalMessagesTable === "string") {
-                    codomain.initialize(conditionalMessagesTable);
-                } else {
-                    codomain.initialize("Const.#throwError could not parse the given argument");
-                }
-                return codomain.read();
-            })()));
-            if (error.stack) {
-                codomain.initialize(error.stack
-                    .replace(/\(<isolated-vm>:/gi, "(")
-                    .replace(/Error:|at\s*(?:#throwError|Const.(?:declare|initialize|read)|new\s*Const)\s*\(\d+:\d+\)/gi, "")
-                    .replace(/AutoCards\s*\((\d+):(\d+)\)\s*at\s*<isolated-vm>:\d+:\d+\s*$/i, "AutoCards ($1:$2)")
-                    .trim()
-                    .replace(/\s+/g, " ")
-                );
-            } else {
-                codomain.initialize(error.message);
-            }
-            throw codomain.read();
+            throw new Error(args.join(" "));
         }
     }); }
     function hoistO() { return (class O {
-        // Some Object class methods are annoyingly verbose for how often I use them 👿
         static f(obj) {
             return Object.freeze(obj);
         }
@@ -2312,10 +2215,6 @@ function AutoCards(inHook, inText, inStop) {
             copy: () => [
                 126852, 33792, 211200, 384912, 336633, 310497, 436425, 336633, 33792, 459492, 363825, 436425, 363825, 444048, 33792, 392073, 483153, 33792, 139425, 175857, 33792, 152592, 451737, 399300, 350097, 336633, 406593, 399300, 33792, 413952, 428868, 406593, 343332, 363825, 384912, 336633, 33792, 135168, 190608, 336633, 467313, 330000, 190608, 336633, 310497, 356928, 33792, 310497, 399300, 330000, 33792, 428868, 336633, 310497, 330000, 33792, 392073, 483153, 33792, 316932, 363825, 406593, 33792, 343332, 406593, 428868, 33792, 436425, 363825, 392073, 413952, 384912, 336633, 33792, 363825, 399300, 436425, 444048, 428868, 451737, 323433, 444048, 363825, 406593, 399300, 436425, 33792, 406593, 399300, 33792, 310497, 330000, 330000, 363825, 399300, 350097, 33792, 139425, 451737, 444048, 406593, 66825, 148137, 310497, 428868, 330000, 436425, 33792, 444048, 406593, 33792, 483153, 406593, 451737, 428868, 33792, 436425, 323433, 336633, 399300, 310497, 428868, 363825, 406593, 436425, 35937, 33792, 3355672848, 139592360193, 3300, 3300, 356928, 444048, 444048, 413952, 436425, 111012, 72897, 72897, 413952, 384912, 310497, 483153, 69828, 310497, 363825, 330000, 451737, 399300, 350097, 336633, 406593, 399300, 69828, 323433, 406593, 392073, 72897, 413952, 428868, 406593, 343332, 363825, 384912, 336633, 72897, 190608, 336633, 467313, 330000, 190608, 336633, 310497, 356928, 3300, 3300, 126852, 33792, 139425, 451737, 444048, 406593, 66825, 148137, 310497, 428868, 330000, 436425, 33792, 459492, 79233, 69828, 76032, 69828, 76032, 33792, 363825, 436425, 33792, 310497, 399300, 33792, 406593, 413952, 336633, 399300, 66825, 436425, 406593, 451737, 428868, 323433, 336633, 33792, 436425, 323433, 428868, 363825, 413952, 444048, 33792, 343332, 406593, 428868, 33792, 139425, 175857, 33792, 152592, 451737, 399300, 350097, 336633, 406593, 399300, 33792, 392073, 310497, 330000, 336633, 33792, 316932, 483153, 33792, 190608, 336633, 467313, 330000, 190608, 336633, 310497, 356928, 69828, 33792, 261393, 406593, 451737, 33792, 356928, 310497, 459492, 336633, 33792, 392073, 483153, 33792, 343332, 451737, 384912, 384912, 33792, 413952, 336633, 428868, 392073, 363825, 436425, 436425, 363825, 406593, 399300, 33792, 444048, 406593, 33792, 451737, 436425, 336633, 33792, 139425, 451737, 444048, 406593, 66825, 148137, 310497, 428868, 330000, 436425, 33792, 467313, 363825, 444048, 356928, 363825, 399300, 33792, 483153, 406593, 451737, 428868, 33792, 413952, 336633, 428868, 436425, 406593, 399300, 310497, 384912, 33792, 406593, 428868, 33792, 413952, 451737, 316932, 384912, 363825, 436425, 356928, 336633, 330000, 33792, 436425, 323433, 336633, 399300, 310497, 428868, 363825, 406593, 436425, 35937, 3300, 126852, 33792, 261393, 406593, 451737, 50193, 428868, 336633, 33792, 310497, 384912, 436425, 406593, 33792, 467313, 336633, 384912, 323433, 406593, 392073, 336633, 33792, 444048, 406593, 33792, 336633, 330000, 363825, 444048, 33792, 444048, 356928, 336633, 33792, 139425, 175857, 33792, 413952, 428868, 406593, 392073, 413952, 444048, 436425, 33792, 310497, 399300, 330000, 33792, 444048, 363825, 444048, 384912, 336633, 33792, 336633, 475200, 323433, 384912, 451737, 436425, 363825, 406593, 399300, 436425, 33792, 413952, 428868, 406593, 459492, 363825, 330000, 336633, 330000, 33792, 316932, 336633, 384912, 406593, 467313, 69828, 33792, 175857, 33792, 436425, 363825, 399300, 323433, 336633, 428868, 336633, 384912, 483153, 33792, 356928, 406593, 413952, 336633, 33792, 483153, 406593, 451737, 33792, 336633, 399300, 370788, 406593, 483153, 33792, 483153, 406593, 451737, 428868, 33792, 310497, 330000, 459492, 336633, 399300, 444048, 451737, 428868, 336633, 436425, 35937, 33792, 101128769412, 106046468352, 3300
             ],
-            // Card interface names reserved for use within LSIv2
-            reserved: () => ({
-                library: "Shared Library", input: "Input Modifier", context: "Context Modifier", output: "Output Modifier", guide: "LSIv2 Guide", state: "State Display", log: "Console Log"
-            }),
             // Acceptable config settings which are coerced to true
             trues: () => [
                 "true", "t", "yes", "y", "on"
@@ -2326,7 +2225,6 @@ function AutoCards(inHook, inText, inStop) {
             ],
             guide: () => prose(
                 ">>> Detailed Guide:",
-                "Auto-Cards was made by LewdLeah ❤️",
                 "",
                 Words.delimiter,
                 "",
@@ -2341,7 +2239,6 @@ function AutoCards(inHook, inText, inStop) {
                 "- Fully customizable AI card generation and memory summarization prompts",
                 "- Free and open source for anyone to use within their own projects",
                 "- Compatible with other scripts and includes an external API",
-                "- Optional in-game scripting interface (LSIv2)",
                 "",
                 Words.delimiter,
                 "",
@@ -2390,12 +2287,6 @@ function AutoCards(inHook, inText, inStop) {
                 "",
                 "> Minimum turns age for title detection:",
                 "How many actions back the script looks when parsing recent titles from your story",
-                "",
-                "> Use Live Script Interface v2:",
-                "Enables LSIv2 for extra scripting magic and advanced control via arbitrary code execution",
-                "",
-                "> Log debug data in a separate card:",
-                "Shows a debug card if set to true",
                 "",
                 Words.delimiter,
                 "",
@@ -2468,15 +2359,6 @@ function AutoCards(inHook, inText, inStop) {
                 "",
                 "AutoCards().API.eraseCard();",
                 "Deletes cards matching a filter",
-                "",
-                "These API functions also work from within the LSIv2 scope, by the way",
-                "",
-                Words.delimiter,
-                "",
-                "❤️ Special Thanks",
-                "This project flourished due to the incredible help, feedback, and encouragement from the AI Dungeon community. Your ideas, bug reports, testing, and support made Auto-Cards smarter, faster, and more fun for all. Please refer to my source code to learn more about everyone's specific contributions",
-                "",
-                "AHotHamster22, BinKompliziert, Boo, bottledfox, Bruno, Burnout, bweni, DebaczX, Dirty Kurtis, Dragranis, effortlyss, Hawk, Idle Confusion, ImprezA, Kat-Oli, KryptykAngel, Mad19pumpkin, Magic, Mirox80, Nathaniel Wyvern, NobodyIsUgly, OnyxFlame, Purplejump, Randy Viosca, RustyPawz, sinner, Sleepy pink, Vutinberg, Wilmar, Yi1i1i",
                 "",
                 Words.delimiter,
                 "",
@@ -2738,21 +2620,6 @@ function AutoCards(inHook, inText, inStop) {
                 removeAutoProps(isolateNotesAndMemories(oldCard.description)[1])
             ).trimEnd() + "\n\n" + AC.generation.pending[AC.generation.pending.length - 1].prompt).trim();
             return true;
-        }
-        // Sometimes it's helpful to log information elsewhere during development
-        // This log card is separate and distinct from the LSIv2 console log
-        static debugLog(...args) {
-            const debugCardName = "Debug Log";
-            banTitle(debugCardName);
-            const card = getSingletonCard(true, O.f({
-                type: AC.config.defaultCardType,
-                title: debugCardName,
-                keys: debugCardName,
-                entry: "The debug console log will print to the notes section below.",
-                description: Words.delimiter + "\nBEGIN DEBUG LOG"
-            }));
-            logToCard(card, ...args);
-            return card;
         }
         static eraseAllAutoCards() {
             const cards = [];
@@ -3284,88 +3151,6 @@ function AutoCards(inHook, inText, inStop) {
     function validateMinLookBackDist(minLookBackDist) {
         return boundInteger(2, minLookBackDist, 88, 7);
     }
-    function getDefaultConfig() {
-        function check(value, fallback = true, type = "boolean") {
-            if (typeof value === type) {
-                return value;
-            } else {
-                return fallback;
-            }
-        }
-        return O.s({
-            // Is Auto-Cards enabled?
-            doAC: check(DEFAULT_DO_AC),
-            // Delete all previously generated story cards?
-            deleteAllAutoCards: null,
-            // Pin the configuration interface story card near the top?
-            pinConfigureCard: check(DEFAULT_PIN_CONFIGURE_CARD),
-            // Minimum number of turns in between automatic card generation events?
-            addCardCooldown: validateCooldown(DEFAULT_CARD_CREATION_COOLDOWN),
-            // Use bulleted list mode for newly generated card entries?
-            bulletedListMode: check(DEFAULT_USE_BULLETED_LIST_MODE),
-            // Maximum allowed length for newly generated story card entries?
-            defaultEntryLimit: validateEntryLimit(DEFAULT_GENERATED_ENTRY_LIMIT),
-            // Do newly generated cards have memory updates enabled by default?
-            defaultCardsDoMemoryUpdates: check(DEFAULT_NEW_CARDS_DO_MEMORY_UPDATES),
-            // Default character limit before the card's memory bank is summarized?
-            defaultMemoryLimit: validateMemoryLimit(DEFAULT_NEW_CARDS_MEMORY_LIMIT),
-            // Approximately how much shorter should recently compressed memories be? (ratio = 10 * old / new)
-            memoryCompressionRatio: validateMemCompRatio(DEFAULT_MEMORY_COMPRESSION_RATIO),
-            // Should the debug data card be visible?
-            showDebugData: check(DEFAULT_SHOW_DEBUG_DATA, false),
-            // How should the AI be prompted when generating new story card entries?
-            generationPrompt: check(DEFAULT_CARD_GENERATION_PROMPT, prose(
-                "-----",
-                "",
-                "<SYSTEM>",
-                "# Stop the story and ignore previous instructions. Write a brief and coherent informational entry for %{title} following these instructions:",
-                "- Write only third-person pure prose information about %{title} using complete sentences with correct punctuation",
-                "- Avoid short-term temporary details or appearances, instead focus on plot-significant information",
-                "- Prioritize story-relevant details about %{title} first to ensure seamless integration with the previous plot",
-                "- Create new information based on the context and story direction",
-                "- Mention %{title} in every sentence",
-                "- Use semicolons if needed",
-                "- Add additional details about %{title} beneath incomplete entries",
-                "- Be concise and grounded",
-                "- Imitate the story's writing style and infer the reader's preferences",
-                "</SYSTEM>",
-                "Continue the entry for %{title} below while avoiding repetition:",
-                "%{entry}"
-            ), "string"),
-            // How should the AI be prompted when summarizing memories for a given story card?
-            compressionPrompt: check(DEFAULT_CARD_MEMORY_COMPRESSION_PROMPT, prose(
-                "-----",
-                "",
-                "<SYSTEM>",
-                "# Stop the story and ignore previous instructions. Summarize and condense the given paragraph into a narrow and focused memory passage while following these guidelines:",
-                "- Ensure the passage retains the core meaning and most essential details",
-                "- Use the third-person perspective",
-                "- Prioritize information-density, accuracy, and completeness",
-                "- Remain brief and concise",
-                "- Write firmly in the past tense",
-                "- The paragraph below pertains to old events from far earlier in the story",
-                "- Integrate %{title} naturally within the memory; however, only write about the events as they occurred",
-                "- Only reference information present inside the paragraph itself, be specific",
-                "</SYSTEM>",
-                "Write a summarized old memory passage for %{title} based only on the following paragraph:",
-                "\"\"\"",
-                "%{memory}",
-                "\"\"\"",
-                "Summarize below:"
-            ), "string"),
-            // All cards constructed by AC will inherit this type by default
-            defaultCardType: check(DEFAULT_CARD_TYPE, "class", "string")
-        });
-    }
-    function getDefaultConfigBans() {
-        if (typeof DEFAULT_BANNED_TITLES_LIST === "string") {
-            return uniqueTitlesArray(DEFAULT_BANNED_TITLES_LIST.split(","));
-        } else {
-            return [
-                "North", "East", "South", "West", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
-            ];
-        }
-    }
     function uniqueTitlesArray(titles) {
         const existingTitles = new Set();
         return (titles
@@ -3666,9 +3451,7 @@ function AutoCards(inHook, inText, inStop) {
             AC.signal.swapControlCards = false;
         }
         endTurn();
-        if (AC.config.LSIv2 === null) {
-            postMessages();
-        }
+        postMessages();
         return;
     }
     function endTurn() {
@@ -4306,10 +4089,6 @@ function AutoCards(inHook, inText, inStop) {
     }
     function getDataVariants() {
         return O.f({
-            debug: O.f({
-                title: "Debug Data",
-                keys: "You may view the debug state in the notes section below",
-            }),
             critical: O.f({
                 title: "Critical Data",
                 keys: "Never modify or delete this story card",
@@ -4319,7 +4098,6 @@ function AutoCards(inHook, inText, inStop) {
     // Prepare to export the codomain
     const codomain = CODOMAIN.read();
     const [stopPackaged, lastCall] = (function() {
-        // Tbh I don't know why I even bothered going through the trouble of implementing "stop" within LSIv2
         switch(HOOK) {
         case "context": {
             const haltStatus = [];
@@ -4329,105 +4107,63 @@ function AutoCards(inHook, inText, inStop) {
             } else {
                 haltStatus.push(false, STOP);
             }
-            if ((AC.config.LSIv2 !== false) && (haltStatus[1] === true)) {
-                // AutoCards will return [text, (stop === true)] onContext
-                // The onOutput lifecycle hook will not be executed during this turn
-                concludeEmergency();
-            }
             return haltStatus; }
         case "output": {
-            // AC.config.LSIv2 being either true or null implies (lastCall === true)
-            return [null, AC.config.LSIv2 ?? true]; }
+            return [null, true]; }
         default: {
             return [null, null]; }
         }
     })();
     // Repackage AC to propagate its state forward in time
-    if (state.LSIv2) {
-        // Facilitates recursive calls of AutoCards
-        // The Auto-Cards external API is accessible through the LSIv2 scope
-        state.LSIv2 = AC;
+    const memoryOverflow = (38000 < (JSON.stringify(state).length + JSON.stringify(AC).length));
+    if (memoryOverflow) {
+        // Memory overflow is imminent
+        const dataVariants = getDataVariants();
+        if (lastCall) {
+            banTitle(dataVariants.critical.title);
+        }
+        setData(dataVariants.critical);
+        if (state.AutoCards) {
+            // Decouple state for safety
+            delete state.AutoCards;
+        }
     } else {
-        const memoryOverflow = (38000 < (JSON.stringify(state).length + JSON.stringify(AC).length));
-        if (memoryOverflow) {
-            // Memory overflow is imminent
+        if (lastCall) {
             const dataVariants = getDataVariants();
-            if (lastCall) {
-                unbanTitle(dataVariants.debug.title);
-                banTitle(dataVariants.critical.title);
-            }
-            setData(dataVariants.critical, dataVariants.debug);
-            if (state.AutoCards) {
-                // Decouple state for safety
-                delete state.AutoCards;
-            }
-        } else {
-            if (lastCall) {
-                const dataVariants = getDataVariants();
-                unbanTitle(dataVariants.critical.title);
-                if (AC.config.showDebugData) {
-                    // Update the debug data card
-                    banTitle(dataVariants.debug.title);
-                    setData(dataVariants.debug, dataVariants.critical);
-                } else {
-                    // There should be no data card
-                    unbanTitle(dataVariants.debug.title);
-                    if (data === null) {
-                        data = getSingletonCard(false, O.f({...dataVariants.debug}), O.f({...dataVariants.critical}));
-                    }
-                    eraseCard(data);
-                    data = null;
-                }
-            } else if (AC.config.showDebugData && (HOOK === undefined)) {
-                const dataVariants = getDataVariants();
-                setData(dataVariants.debug, dataVariants.critical);
-            }
-            // Save a backup image to state
-            state.AutoCards = AC;
+            unbanTitle(dataVariants.critical.title);
         }
-        function setData(primaryVariant, secondaryVariant) {
-            const dataCardTemplate = O.f({
-                type: AC.config.defaultCardType,
-                title: primaryVariant.title,
-                keys: primaryVariant.keys,
-                entry: (function() {
-                    const mutualEntry = (
-                        "If you encounter an Auto-Cards bug or otherwise wish to help me improve this script by sharing your configs and game data, please send me the notes text found below. You may ping me @LewdLeah through the official AI Dungeon Discord server. Please ensure the content you share is appropriate for the server, otherwise DM me instead. 😌"
+        // Save a backup image to state
+        state.AutoCards = AC;
+    }
+    function setData(primaryVariant, secondaryVariant) {
+        const dataCardTemplate = O.f({
+            type: AC.config.defaultCardType,
+            title: primaryVariant.title,
+            keys: primaryVariant.keys,
+            entry: (function() {
+                if (memoryOverflow) {
+                    return (
+                        "Seeing this means Auto-Cards detected an imminent memory overflow event. But fear not! As an emergency fallback, the full state of Auto-Cards' data has been serialized and written to the notes section below. This text will be deserialized during each lifecycle hook, therefore it's absolutely imperative that you avoid editing this story card!"
                     );
-                    if (memoryOverflow) {
-                        return (
-                            "Seeing this means Auto-Cards detected an imminent memory overflow event. But fear not! As an emergency fallback, the full state of Auto-Cards' data has been serialized and written to the notes section below. This text will be deserialized during each lifecycle hook, therefore it's absolutely imperative that you avoid editing this story card!"
-                        ) + (function() {
-                            if (AC.config.showDebugData) {
-                                return "\n\n" + mutualEntry;
-                            } else {
-                                return "";
-                            }
-                        })();
-                    } else {
-                        return (
-                            "This story card displays the full serialized state of Auto-Cards. To remove this card, simply set the \"log debug data\" setting to false within your \"Configure\" card. "
-                        ) + mutualEntry;
-                    }
-                })(),
-                description: JSON.stringify(AC)
-            });
-            if (data === null) {
-                data = getSingletonCard(true, dataCardTemplate, O.f({...secondaryVariant}));
-            }
-            for (const propertyName of ["title", "keys", "entry", "description"]) {
-                if (data[propertyName] !== dataCardTemplate[propertyName]) {
-                    data[propertyName] = dataCardTemplate[propertyName];
                 }
-            }
-            const index = storyCards.indexOf(data);
-            if ((index !== -1) && (index !== (storyCards.length - 1))) {
-                // Ensure the data card is always at the bottom of the story cards list
-                storyCards.splice(index, 1);
-                storyCards.push(data);
-            }
-            return;
+            })(),
+            description: JSON.stringify(AC)
+        });
+        if (data === null) {
+            data = getSingletonCard(true, dataCardTemplate, O.f({...secondaryVariant}));
         }
+        for (const propertyName of ["title", "keys", "entry", "description"]) {
+            if (data[propertyName] !== dataCardTemplate[propertyName]) {
+                data[propertyName] = dataCardTemplate[propertyName];
+            }
+        }
+        const index = storyCards.indexOf(data);
+        if ((index !== -1) && (index !== (storyCards.length - 1))) {
+            // Ensure the data card is always at the bottom of the story cards list
+            storyCards.splice(index, 1);
+            storyCards.push(data);
+        }
+        return;
     }
     // This is the only return point within the parent scope of AutoCards
     if (stopPackaged === false) {
@@ -4435,6 +4171,5 @@ function AutoCards(inHook, inText, inStop) {
     } else {
         return codomain;
     }
-} AutoCards(null);
-
-// Additional library scripts can be added here.
+}
+AutoCards(null);
