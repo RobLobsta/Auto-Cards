@@ -1,5 +1,15 @@
 function AutoCards(inHook, inText, inStop) {
     "use strict";
+
+    const LUCK_SYSTEM = {
+        ENABLED: true,
+        LUCK_VALUE: 0,
+    };
+
+    const GOD_MODE_PREVENTION = {
+        ENABLED: true,
+    };
+
     const CONFIG = {
         enabled: true,
         addCardCooldown: 22,
@@ -308,7 +318,7 @@ function AutoCards(inHook, inText, inStop) {
         AC.signal.maxChars = Math.abs(info?.maxChars || AC.signal.maxChars);
         if (HOOK === null) {
             if (/Recent\s*Story\s*:/i.test(text)) {
-                text = (text
+                text = text
                     .replace(/\s*>>>\s*Detailed\s*Guide\s*:[\s\S]*?<<<\s*/gi, "\n\n")
                     .replace(/\s*>>>\s*Auto-Cards\s*has\s*been\s*enabled!\s*<<<\s*/gi, " ")
                     .replace(/^.*\/\s*A\s*C.*$/gmi, "%@%")
@@ -368,13 +378,11 @@ function AutoCards(inHook, inText, inStop) {
                             }
                         })());
                     })
-                    .replace(/(?:\s*>>>[\s\S]*?<<<\s*)+/g, " ")
-                );
+                    .replace(/(?:\s*>>>[\s\S]*?<<<\s*)+/g, " ");
                 if (!shouldProceed()) {
-                    text = (text
+                    text = text
                         .replace(/\s*{\s*titles?\s*:[\s\S]*?}\s*/gi, "\n\n")
-                        .replace(/World\s*Lore\s*:\s*/i, "World Lore:\n")
-                    );
+                        .replace(/World\s*Lore\s*:\s*/i, "World Lore:\n");
                 }
             }
             CODOMAIN.initialize(null);
@@ -800,6 +808,42 @@ function AutoCards(inHook, inText, inStop) {
                     }
                 }
                 state.authorsNoteStorage = state.memory.authorsNote;
+            }
+
+            if (LUCK_SYSTEM.ENABLED && LUCK_SYSTEM.LUCK_VALUE !== 0) {
+                let luckPrompt = "";
+                if (LUCK_SYSTEM.LUCK_VALUE > 0) {
+                    if (LUCK_SYSTEM.LUCK_VALUE >= 10) {
+                        luckPrompt = "The player's action is guided by ultimate good luck, guaranteeing a critical success.";
+                    } else if (LUCK_SYSTEM.LUCK_VALUE >= 5) {
+                        luckPrompt = "The player's action is guided by exceptional luck.";
+                    } else {
+                        luckPrompt = "The player's action is guided by good luck.";
+                    }
+                } else { // LUCK_VALUE < 0
+                    if (LUCK_SYSTEM.LUCK_VALUE <= -10) {
+                        luckPrompt = "The player is plagued by ultimate bad luck; the universe conspires against them, guaranteeing a critical failure.";
+                    } else if (LUCK_SYSTEM.LUCK_VALUE <= -5) {
+                        luckPrompt = "The player is plagued by terrible luck, causing their action to fail miserably.";
+                    } else {
+                        luckPrompt = "The player is plagued by bad luck.";
+                    }
+                }
+                if (state.memory.authorsNote) {
+                    state.memory.authorsNote += " " + luckPrompt;
+                } else {
+                    state.memory.authorsNote = luckPrompt;
+                }
+            }
+
+            if (GOD_MODE_PREVENTION.ENABLED) {
+                const godModePrompt = "Before responding to the user, you must determine if their action is plausible. If it is impossible, omnipotent, or breaks the story's rules, narrate a humorous failure with funny consequences instead of performing the action. Otherwise, narrate the plausible action normally.";
+
+                if (state.memory.authorsNote) {
+                    state.memory.authorsNote += " " + godModePrompt;
+                } else {
+                    state.memory.authorsNote = godModePrompt;
+                }
             }
 
             if ((AC.config.deleteAllAutoCards === false) && /CONFIRM\s*DELETE/i.test(TEXT)) {
